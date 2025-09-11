@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<prompt>
+    <role>You are a senior Rust developer specializing in database integration with SQLx and repository pattern implementation.</role>
+    <task>
+        <id>4</id>
+        <title>User Repository Implementation</title>
+        <description>Implement the UserRepository trait and SQLx-based implementation for database operations</description>
+        <priority>high</priority>
+        <status>pending</status>
+        <dependencies>2,3</dependencies>
+    </task>
+    <technical_specifications>
+        <spec>Create UserRepository trait with async CRUD methods using async_trait</spec>
+        <spec>Implement SqlxUserRepository struct with PgPool for connection management</spec>
+        <spec>Use SQLx query_as! macro for compile-time SQL verification</spec>
+        <spec>Implement create_user to insert and return created user with auto-generated ID</spec>
+        <spec>Implement get_user to retrieve user by ID, returning Option&lt;User&gt;</spec>
+        <spec>Implement get_users to list all users ordered by ID</spec>
+        <spec>Implement update_user with dynamic SQL building for partial updates</spec>
+        <spec>Implement delete_user to remove user and return success boolean</spec>
+        <spec>Map all database errors to ApiError::Database</spec>
+        <spec>Use parameterized queries to prevent SQL injection</spec>
+        <spec>Always update the updated_at timestamp on modifications</spec>
+        <spec>Check user existence before attempting updates</spec>
+    </technical_specifications>
+    <implementation_details>
+1. Create the repository trait in src/repository/user_repository.rs:
+```rust
+use async_trait::async_trait;
+use crate::models::{User, CreateUserRequest, UpdateUserRequest};
+use crate::error::{ApiError, Result};
+
+#[async_trait]
+pub trait UserRepository {
+    async fn create_user(&amp;self, req: CreateUserRequest) -> Result&lt;User&gt;;
+    async fn get_user(&amp;self, id: i32) -> Result&lt;Option&lt;User&gt;&gt;;
+    async fn get_users(&amp;self) -> Result&lt;Vec&lt;User&gt;&gt;;
+    async fn update_user(&amp;self, id: i32, req: UpdateUserRequest) -> Result&lt;Option&lt;User&gt;&gt;;
+    async fn delete_user(&amp;self, id: i32) -> Result&lt;bool&gt;;
+}
+```
+
+2. Implement the SQLx-based repository:
+```rust
+use sqlx::PgPool;
+
+pub struct SqlxUserRepository {
+    pool: PgPool,
+}
+
+impl SqlxUserRepository {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl UserRepository for SqlxUserRepository {
+    async fn create_user(&amp;self, req: CreateUserRequest) -> Result&lt;User&gt; {
+        let user = sqlx::query_as!(User,
+            r#"INSERT INTO users (name, email) VALUES ($1, $2) 
+               RETURNING id, name, email, created_at, updated_at"#,
+            req.name, req.email
+        )
+        .fetch_one(&amp;self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+        
+        Ok(user)
+    }
+    
+    async fn get_user(&amp;self, id: i32) -> Result&lt;Option&lt;User&gt;&gt; {
+        let user = sqlx::query_as!(User,
+            r#"SELECT id, name, email, created_at, updated_at FROM users WHERE id = $1"#,
+            id
+        )
+        .fetch_optional(&amp;self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+        
+        Ok(user)
+    }
+    
+    async fn get_users(&amp;self) -> Result&lt;Vec&lt;User&gt;&gt; {
+        let users = sqlx::query_as!(User,
+            r#"SELECT id, name, email, created_at, updated_at FROM users ORDER BY id"#
+        )
+        .fetch_all(&amp;self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+        
+        Ok(users)
+    }
+    
+    async fn update_user(&amp;self, id: i32, req: UpdateUserRequest) -> Result&lt;Option&lt;User&gt;&gt; {
+        // First check if user exists
+        let existing = self.get_user(id).await?;
+        if existing.is_none() {
+            return Ok(None);
+        }
+        
+        // Build dynamic update query
+        let mut query = String::from("UPDATE users SET updated_at = NOW()");
+        let mut params = vec![];
+        
+        if let Some(name) = &amp;req.name {
+            params.push(name.clone());
+            query.push_str(&amp;format!(", name = ${}", params.len()));
+        }
+        
+        if let Some(email) = &amp;req.email {
+            params.push(email.clone());
+            query.push_str(&amp;format!(", email = ${}", params.len()));
+        }
+        
+        params.push(id.to_string());
+        query.push_str(&amp;format!(
+            " WHERE id = ${} RETURNING id, name, email, created_at, updated_at",
+            params.len()
+        ));
+        
+        // Execute dynamic query
+        let user = sqlx::query_as::&lt;_, User&gt;(&amp;query)
+            .bind_all(params)
+            .fetch_one(&amp;self.pool)
+            .await
+            .map_err(ApiError::Database)?;
+            
+        Ok(Some(user))
+    }
+    
+    async fn delete_user(&amp;self, id: i32) -> Result&lt;bool&gt; {
+        let result = sqlx::query!("DELETE FROM users WHERE id = $1", id)
+            .execute(&amp;self.pool)
+            .await
+            .map_err(ApiError::Database)?;
+            
+        Ok(result.rows_affected() > 0)
+    }
+}
+```
+
+3. Update src/repository/mod.rs to export the repository:
+```rust
+mod user_repository;
+
+pub use user_repository::{UserRepository, SqlxUserRepository};
+
+// Keep the existing create_pool function
+```
+
+4. Add async-trait to Cargo.toml:
+```toml
+async-trait = "0.1"
+```
+    </implementation_details>
+    <acceptance_criteria>
+        <criterion>UserRepository trait defined with all five CRUD methods</criterion>
+        <criterion>SqlxUserRepository implements all trait methods correctly</criterion>
+        <criterion>create_user returns user with auto-generated ID and timestamps</criterion>
+        <criterion>get_user returns Option::None for non-existent users</criterion>
+        <criterion>get_users returns all users ordered by ID</criterion>
+        <criterion>update_user only modifies provided fields and updates timestamp</criterion>
+        <criterion>update_user returns None if user doesn't exist</criterion>
+        <criterion>delete_user returns true if deletion successful, false otherwise</criterion>
+        <criterion>All database errors properly mapped to ApiError::Database</criterion>
+        <criterion>No SQL injection vulnerabilities (parameterized queries used)</criterion>
+        <criterion>Connection pool used efficiently without leaks</criterion>
+        <criterion>Module exports are clean and organized</criterion>
+        <criterion>Code compiles without warnings</criterion>
+    </acceptance_criteria>
+    <test_strategy>
+Create integration tests in src/repository/user_repository_test.rs:
+
+1. Test user creation:
+```rust
+#[sqlx::test]
+async fn test_create_user() {
+    let pool = setup_test_database().await;
+    let repo = SqlxUserRepository::new(pool);
+    
+    let req = CreateUserRequest {
+        name: "Test User".to_string(),
+        email: "test@example.com".to_string(),
+    };
+    
+    let user = repo.create_user(req).await.unwrap();
+    assert_eq!(user.name, "Test User");
+    assert_eq!(user.email, "test@example.com");
+    assert!(user.id > 0);
+}
+```
+
+2. Test get operations:
+```rust
+#[sqlx::test]
+async fn test_get_user() {
+    let pool = setup_test_database().await;
+    let repo = SqlxUserRepository::new(pool);
+    
+    let created = repo.create_user(req).await.unwrap();
+    
+    let user = repo.get_user(created.id).await.unwrap().unwrap();
+    assert_eq!(user.id, created.id);
+    
+    let missing = repo.get_user(99999).await.unwrap();
+    assert!(missing.is_none());
+}
+```
+
+3. Test update with partial fields:
+```rust
+#[sqlx::test]
+async fn test_update_user() {
+    let pool = setup_test_database().await;
+    let repo = SqlxUserRepository::new(pool);
+    
+    let created = repo.create_user(initial).await.unwrap();
+    
+    let update_req = UpdateUserRequest {
+        name: Some("Updated Name".to_string()),
+        email: None,
+    };
+    
+    let updated = repo.update_user(created.id, update_req).await.unwrap().unwrap();
+    assert_eq!(updated.name, "Updated Name");
+    assert_eq!(updated.email, created.email); // Unchanged
+}
+```
+
+4. Test deletion:
+```rust
+#[sqlx::test]
+async fn test_delete_user() {
+    let pool = setup_test_database().await;
+    let repo = SqlxUserRepository::new(pool);
+    
+    let created = repo.create_user(req).await.unwrap();
+    
+    let deleted = repo.delete_user(created.id).await.unwrap();
+    assert!(deleted);
+    
+    let user = repo.get_user(created.id).await.unwrap();
+    assert!(user.is_none());
+}
+```
+    </test_strategy>
+    <instructions>
+        Think step-by-step about the implementation approach. Consider the existing codebase structure and patterns.
+        Start by verifying that Tasks 2 and 3 are complete (database setup and models).
+        Implement the repository trait first, then the SQLx implementation.
+        Pay special attention to the dynamic update query building - it's the most complex part.
+        Ensure all SQL queries are safe from injection by using parameterized statements.
+        Remember that get_user returns Option (None is not an error condition).
+        Always update the updated_at timestamp when modifying records.
+        Test each method to ensure it works correctly with the PostgreSQL database.
+        Follow Rust best practices including proper error handling and no use of unwrap() in production code.
+        Provide complete, production-ready code that follows best practices. Include necessary imports,
+        error handling, and documentation. Test your solution thoroughly before finalizing.
+    </instructions>
+</prompt>

@@ -1,0 +1,100 @@
+# Task ID: 2
+# Title: Database Schema and Migrations
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Set up the PostgreSQL database schema with migrations using SQLx
+# Details:
+1. Create a migrations directory in the project root
+2. Create the initial migration file `migrations/001_initial_schema.sql` with the schema from the PRD:
+```sql
+-- Main users table
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Performance indexes
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created_at ON users(created_at DESC);
+```
+3. Install SQLx CLI: `cargo install sqlx-cli`
+4. Add database connection setup in src/repository/mod.rs:
+```rust
+use sqlx::postgres::{PgPool, PgPoolOptions};
+use std::time::Duration;
+
+pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    PgPoolOptions::new()
+        .max_connections(10)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(database_url)
+        .await
+}
+```
+5. Update main.rs to include database connection:
+```rust
+// Inside main function
+let pool = repository::create_pool(&config.database_url).await?;
+
+// Run migrations
+sqlx::migrate!().run(&pool).await?;
+
+// Add pool to app state
+let app = Router::new()
+    .route("/health", axum::routing::get(health_check))
+    .with_state(pool);
+```
+6. Create a database test utility in src/repository/test_utils.rs for integration tests:
+```rust
+#[cfg(test)]
+pub mod test_utils {
+    use sqlx::{PgPool, Postgres, Transaction};
+    use std::sync::Once;
+    
+    static INIT: Once = Once::new();
+    
+    pub async fn setup_test_database() -> PgPool {
+        INIT.call_once(|| {
+            dotenv::from_filename(".env.test").ok();
+        });
+        
+        let database_url = std::env::var("DATABASE_URL")
+            .expect("DATABASE_URL must be set in .env.test");
+            
+        let pool = super::create_pool(&database_url).await.unwrap();
+        
+        // Run migrations
+        sqlx::migrate!().run(&pool).await.unwrap();
+        
+        pool
+    }
+    
+    pub async fn transaction<'a>(pool: &'a PgPool) -> Transaction<'a, Postgres> {
+        pool.begin().await.unwrap()
+    }
+}
+```
+
+# Test Strategy:
+1. Verify migrations run successfully with `sqlx migrate run`
+2. Test database connection by running the application and checking logs
+3. Create a simple test that connects to the database and verifies the users table exists:
+```rust
+#[sqlx::test]
+async fn test_database_schema() {
+    let pool = setup_test_database().await;
+    
+    // Check if users table exists
+    let result = sqlx::query!("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        
+    assert!(result.exists.unwrap());
+}
+```
+4. Verify indexes are created correctly with a query to the information_schema
