@@ -1,0 +1,158 @@
+# Task ID: 8
+# Title: API Documentation and Developer Experience
+# Status: pending
+# Dependencies: 5
+# Priority: medium
+# Description: Implement API documentation, logging, and developer experience improvements
+# Details:
+1. Add OpenAPI documentation using utoipa in Cargo.toml:
+```toml
+utoipa = { version = "3.0", features = ["axum"] }
+utoipa-swagger-ui = { version = "3.0", features = ["axum"] }
+```
+
+2. Implement OpenAPI documentation in src/docs.rs:
+```rust
+use utoipa::OpenApi;
+use crate::models::{User, CreateUserRequest, UpdateUserRequest};
+use crate::error::ErrorResponse;
+
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        crate::routes::health_check,
+        crate::routes::get_users,
+        crate::routes::get_user,
+        crate::routes::create_user,
+        crate::routes::update_user,
+        crate::routes::delete_user
+    ),
+    components(
+        schemas(User, CreateUserRequest, UpdateUserRequest, ErrorResponse)
+    ),
+    tags(
+        (name = "rust-basic-api", description = "Rust Basic API endpoints")
+    )
+)]
+pub struct ApiDoc;
+```
+
+3. Update the models with OpenAPI annotations:
+```rust
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, utoipa::ToSchema)]
+pub struct User {
+    #[schema(example = 1)]
+    pub id: i32,
+    #[schema(example = "John Doe")]
+    pub name: String,
+    #[schema(example = "john.doe@example.com")]
+    pub email: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+```
+
+4. Add OpenAPI annotations to route handlers:
+```rust
+#[utoipa::path(
+    get,
+    path = "/users",
+    responses(
+        (status = 200, description = "List of users retrieved successfully", body = Vec<User>),
+        (status = 500, description = "Internal server error", body = ErrorResponse)
+    )
+)]
+pub async fn get_users(State(pool): State<PgPool>) -> Result<Json<Vec<User>>> {
+    // ... existing implementation
+}
+```
+
+5. Update main.rs to include Swagger UI:
+```rust
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+mod docs;
+use docs::ApiDoc;
+
+// Inside main function
+let app = Router::new()
+    // ... existing routes
+    .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+    .layer(TraceLayer::new_for_http())
+    .with_state(pool);
+```
+
+6. Enhance logging with structured logging in src/logging.rs:
+```rust
+use tracing::{subscriber::set_global_default, Subscriber};
+use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
+use tracing_log::LogTracer;
+use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
+use std::sync::Once;
+
+static INIT: Once = Once::new();
+
+pub fn init_logging() {
+    INIT.call_once(|| {
+        // Redirect all log events to our subscriber
+        LogTracer::init().expect("Failed to set logger");
+        
+        // Create a subscriber that prints formatted traces to stdout
+        let env_filter = EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::new("info"));
+            
+        let formatting_layer = BunyanFormattingLayer::new(
+            "rust-basic-api".into(),
+            std::io::stdout,
+        );
+        
+        let subscriber = Registry::default()
+            .with(env_filter)
+            .with(JsonStorageLayer)
+            .with(formatting_layer);
+            
+        set_global_default(subscriber)
+            .expect("Failed to set subscriber");
+    });
+}
+```
+
+7. Add tracing-bunyan-formatter to Cargo.toml:
+```toml
+tracing-bunyan-formatter = "0.3"
+tracing-log = "0.1"
+```
+
+8. Create a hot reload development setup with cargo-watch in scripts/dev.sh:
+```bash
+#!/bin/bash
+
+# Install cargo-watch if not already installed
+if ! command -v cargo-watch &> /dev/null; then
+    echo "Installing cargo-watch..."
+    cargo install cargo-watch
+fi
+
+# Start PostgreSQL with docker-compose
+docker-compose up -d postgres
+
+# Run the application with hot reload
+echo "Starting application with hot reload..."
+cargo watch -x 'run'
+```
+
+9. Add a .env file for local development:
+```
+DATABASE_URL=postgresql://postgres:password@localhost:5432/rust_api_dev
+RUST_LOG=debug
+SERVER_PORT=3000
+```
+
+# Test Strategy:
+1. Verify Swagger UI is accessible at http://localhost:3000/swagger-ui
+2. Test that all API endpoints are documented correctly
+3. Verify that the OpenAPI JSON is valid at http://localhost:3000/api-docs/openapi.json
+4. Test structured logging by checking the log output format
+5. Verify hot reload works by making changes to the code while running the dev script
+6. Test environment variable loading with different configurations
+7. Verify that all API examples in the documentation work correctly

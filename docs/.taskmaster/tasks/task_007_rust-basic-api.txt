@@ -1,0 +1,187 @@
+# Task ID: 7
+# Title: Containerization and Deployment Setup
+# Status: pending
+# Dependencies: 5
+# Priority: medium
+# Description: Set up Docker containerization and Kubernetes deployment configuration
+# Details:
+1. Create a Dockerfile in the project root:
+```dockerfile
+# Build stage
+FROM rust:1.70 as builder
+WORKDIR /app
+
+# Copy manifests and build dependencies
+COPY Cargo.toml Cargo.lock ./
+
+# Create a dummy main.rs to build dependencies
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs
+RUN cargo build --release
+
+# Remove the dummy files
+RUN rm -rf src
+
+# Copy the actual source code
+COPY . .
+
+# Build the application
+RUN cargo build --release
+
+# Runtime stage
+FROM debian:bullseye-slim
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl-dev && rm -rf /var/lib/apt/lists/*
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/target/release/rust-basic-api /app/rust-basic-api
+
+# Copy migrations
+COPY --from=builder /app/migrations /app/migrations
+
+# Expose the application port
+EXPOSE 3000
+
+# Set the entrypoint
+CMD ["/app/rust-basic-api"]
+```
+
+2. Create a docker-compose.yml file for development:
+```yaml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: rust_api_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/rust_api_dev
+      RUST_LOG: debug
+    depends_on:
+      - postgres
+    volumes:
+      - .:/app
+      - /app/target
+
+volumes:
+  postgres_data:
+```
+
+3. Create Kubernetes deployment manifests in k8s/deployment.yaml:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rust-basic-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rust-basic-api
+  template:
+    metadata:
+      labels:
+        app: rust-basic-api
+    spec:
+      containers:
+      - name: api
+        image: rust-basic-api:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: database-url
+        - name: RUST_LOG
+          value: "info"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+```
+
+4. Create a Kubernetes service in k8s/service.yaml:
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: rust-basic-api
+spec:
+  selector:
+    app: rust-basic-api
+  ports:
+  - port: 80
+    targetPort: 3000
+  type: ClusterIP
+```
+
+5. Create a script to build and push the Docker image in scripts/build_image.sh:
+```bash
+#!/bin/bash
+set -e
+
+# Configuration
+IMAGE_NAME="rust-basic-api"
+IMAGE_TAG="$(git rev-parse --short HEAD)"
+
+# Build the Docker image
+echo "Building Docker image $IMAGE_NAME:$IMAGE_TAG"
+docker build -t $IMAGE_NAME:$IMAGE_TAG .
+docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
+
+echo "Docker image built successfully"
+```
+
+6. Create a script to deploy to Kubernetes in scripts/deploy_k8s.sh:
+```bash
+#!/bin/bash
+set -e
+
+# Configuration
+NAMESPACE="default"
+
+# Apply Kubernetes manifests
+echo "Deploying to Kubernetes in namespace $NAMESPACE"
+kubectl apply -f k8s/deployment.yaml -n $NAMESPACE
+kubectl apply -f k8s/service.yaml -n $NAMESPACE
+
+echo "Deployment completed successfully"
+```
+
+# Test Strategy:
+1. Test Docker build with `docker build -t rust-basic-api:test .`
+2. Test Docker Compose setup with `docker-compose up -d` and verify the API is accessible
+3. Test the health endpoint in the Docker container with `curl http://localhost:3000/health`
+4. Verify that the Docker container can connect to the database
+5. Test Kubernetes manifests with a local Kubernetes cluster (e.g., minikube or kind)
+6. Verify that the Kubernetes probes are working correctly
+7. Test scaling the deployment with `kubectl scale deployment/rust-basic-api --replicas=2`
