@@ -41,10 +41,10 @@
       "qualityAgent": "5DLabs-Cleo",
       "testingAgent": "5DLabs-Tess",
       "repository": "5dlabs/rust-basic-api",
-      "service": "trader",
+      "service": "rust-basic-api",
       "docsRepository": "5dlabs/rust-basic-api",
       "docsProjectDirectory": "docs",
-      "workingDirectory": "/Users/jonathonfritz/code/work-projects/5dlabs/rust-basic-api"
+      "workingDirectory": "."
     },
     "docs_ingest": {
       "model": "claude-sonnet-4-20250514",
@@ -72,7 +72,6 @@
       "tools": {
         "remote": [
           "brave_web_search",
-          "solana_Solana_Expert__Ask_For_Help",
           "context7_get_library_docs",
           "rustdocs_query_rust_docs"
         ],
@@ -85,10 +84,7 @@
       "model": "claude-sonnet-4-20250514",
       "tools": {
         "remote": [
-          "memory_create_entities",
-          "memory_add_observations",
           "brave_web_search",
-          "solana_Solana_Expert__Ask_For_Help",
           "context7_get_library_docs",
           "rustdocs_query_rust_docs",
           "agent_docs_add_rust_crate"
@@ -103,7 +99,6 @@
       "tools": {
         "remote": [
           "brave_web_search",
-          "solana_Solana_Expert__Ask_For_Help",
           "context7_get_library_docs",
           "rustdocs_query_rust_docs",
           "agent_docs_add_rust_crate",
