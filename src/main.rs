@@ -68,7 +68,7 @@ async fn create_user(
     Json(create_user): Json<CreateUser>,
 ) -> Result<Json<ApiResponse<User>>, StatusCode> {
     let user = sqlx::query_as::<_, User>(
-        "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, name, email"
+        "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, name, email",
     )
     .bind(create_user.name)
     .bind(create_user.email)
