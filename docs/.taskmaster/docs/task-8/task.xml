@@ -1,0 +1,141 @@
+<prompt>
+    <role>You are a senior Rust developer specializing in web API development with expertise in OpenAPI documentation, structured logging, and developer tooling.</role>
+    <task>
+        <id>8</id>
+        <title>API Documentation and Developer Experience</title>
+        <description>Implement comprehensive API documentation using OpenAPI/Swagger, enhance logging with structured JSON output, and improve developer experience with hot reload and environment configuration</description>
+        <priority>medium</priority>
+        <status>pending</status>
+        <dependencies>5</dependencies>
+    </task>
+    <technical_specifications>
+        <spec>Integrate utoipa crate version 3.0 with axum features for OpenAPI documentation generation</spec>
+        <spec>Implement utoipa-swagger-ui version 3.0 for interactive API documentation interface</spec>
+        <spec>Add OpenAPI annotations to all API route handlers with complete request/response documentation</spec>
+        <spec>Implement ToSchema derivation for all models (User, CreateUserRequest, UpdateUserRequest, ErrorResponse)</spec>
+        <spec>Create centralized ApiDoc struct deriving OpenApi trait with all paths and components</spec>
+        <spec>Mount SwaggerUI at /swagger-ui endpoint with OpenAPI JSON at /api-docs/openapi.json</spec>
+        <spec>Implement structured JSON logging using tracing-bunyan-formatter version 0.3</spec>
+        <spec>Configure EnvFilter for dynamic log level control via RUST_LOG environment variable</spec>
+        <spec>Add TraceLayer to Axum router for automatic request/response logging</spec>
+        <spec>Create development script with cargo-watch for hot reload functionality</spec>
+        <spec>Implement .env file support for local development configuration</spec>
+        <spec>Ensure idempotent logging initialization using std::sync::Once</spec>
+    </technical_specifications>
+    <implementation_details>
+1. Add OpenAPI documentation dependencies to Cargo.toml:
+   - utoipa = { version = "3.0", features = ["axum"] }
+   - utoipa-swagger-ui = { version = "3.0", features = ["axum"] }
+   - tracing-bunyan-formatter = "0.3"
+   - tracing-log = "0.1"
+
+2. Create src/docs.rs module with OpenAPI documentation structure:
+   - Define ApiDoc struct deriving OpenApi
+   - Register all route paths (health_check, get_users, get_user, create_user, update_user, delete_user)
+   - Include all model schemas in components
+   - Add API tags with descriptions
+
+3. Update all models in src/models.rs with OpenAPI annotations:
+   - Add utoipa::ToSchema derive to User, CreateUserRequest, UpdateUserRequest, ErrorResponse
+   - Include schema examples for all fields
+   - Ensure proper type annotations for datetime fields
+
+4. Add OpenAPI path annotations to all route handlers:
+   - Document HTTP method, path, and operation description
+   - Specify all possible response status codes with descriptions
+   - Include request body schemas where applicable
+   - Document path and query parameters
+
+5. Integrate SwaggerUI in main.rs:
+   - Import utoipa and utoipa_swagger_ui modules
+   - Create OpenAPI specification from ApiDoc
+   - Mount SwaggerUI router at /swagger-ui
+   - Serve OpenAPI JSON at /api-docs/openapi.json
+   - Add TraceLayer for request logging
+
+6. Implement structured logging in src/logging.rs:
+   - Create init_logging() function with Once guard
+   - Setup LogTracer to redirect log events
+   - Configure EnvFilter with RUST_LOG support
+   - Implement BunyanFormattingLayer for JSON output
+   - Combine layers with tracing_subscriber::Registry
+
+7. Create scripts/dev.sh for development workflow:
+   - Check and install cargo-watch if needed
+   - Start PostgreSQL with docker-compose
+   - Run application with cargo watch for hot reload
+   - Handle graceful shutdown on script termination
+
+8. Create .env file for local development:
+   - DATABASE_URL with PostgreSQL connection string
+   - RUST_LOG set to debug level
+   - SERVER_PORT configuration
+   - Any other environment-specific settings
+
+9. Update main.rs to initialize logging:
+   - Call init_logging() before any other initialization
+   - Ensure logging is set up before server start
+   - Add appropriate info/debug logs for startup
+    </implementation_details>
+    <acceptance_criteria>
+        <criterion>SwaggerUI interface accessible at http://localhost:3000/swagger-ui with all endpoints documented</criterion>
+        <criterion>OpenAPI JSON specification available at http://localhost:3000/api-docs/openapi.json and validates correctly</criterion>
+        <criterion>All API endpoints have complete OpenAPI annotations with request/response schemas</criterion>
+        <criterion>All models implement ToSchema with appropriate field examples</criterion>
+        <criterion>Structured JSON logging outputs valid JSON with timestamp, level, message, and context fields</criterion>
+        <criterion>Log level dynamically configurable via RUST_LOG environment variable</criterion>
+        <criterion>Request/response automatically logged with method, path, status, and duration</criterion>
+        <criterion>Development script successfully installs dependencies and starts hot reload</criterion>
+        <criterion>Code changes trigger automatic recompilation and server restart within 2 seconds</criterion>
+        <criterion>Environment variables from .env file properly loaded on application startup</criterion>
+        <criterion>No performance degradation from documentation or logging (< 1ms overhead)</criterion>
+        <criterion>All tests pass including new documentation and logging functionality</criterion>
+    </acceptance_criteria>
+    <test_strategy>
+        Test API Documentation:
+        1. Verify SwaggerUI loads at /swagger-ui without errors
+        2. Confirm all endpoints appear in documentation with correct schemas
+        3. Test "Try it out" functionality for each endpoint
+        4. Validate OpenAPI JSON against OpenAPI 3.0 specification
+        5. Ensure examples render correctly in documentation
+
+        Test Structured Logging:
+        1. Verify JSON format of log output using jq or similar tool
+        2. Test log level filtering with different RUST_LOG values
+        3. Confirm request/response logging includes all required fields
+        4. Verify error logs include stack traces and context
+        5. Test that sensitive data is not logged
+
+        Test Developer Experience:
+        1. Run dev.sh script and verify PostgreSQL starts
+        2. Make code change and confirm hot reload triggers
+        3. Test that compilation errors don't crash watch process
+        4. Verify environment variables from .env are loaded
+        5. Test script cleanup on SIGINT/SIGTERM
+
+        Integration Tests:
+        1. Start application with full documentation and logging
+        2. Make API requests and verify they appear in logs
+        3. Access SwaggerUI and test API calls through interface
+        4. Verify no memory leaks from logging over time
+        5. Test production build excludes development dependencies
+
+        Performance Tests:
+        1. Measure baseline API response times
+        2. Enable logging and documentation, measure again
+        3. Verify overhead is less than 1ms per request
+        4. Test SwaggerUI load time is under 2 seconds
+        5. Confirm OpenAPI JSON generation under 100ms
+    </test_strategy>
+    <instructions>
+        Think step-by-step about the implementation approach. Consider the existing codebase structure and patterns.
+        
+        Start by adding all required dependencies to Cargo.toml in a single update. Then create the docs.rs module with the complete OpenAPI structure. Update all existing models with the ToSchema derive and schema annotations. Add path annotations to each route handler systematically.
+        
+        For logging, create a dedicated logging.rs module that encapsulates all logging configuration. Ensure the logging is initialized early in main.rs before any other operations.
+        
+        When creating the development script, make it robust with proper error handling and cleanup. The script should be idempotent and work on fresh clones of the repository.
+        
+        Provide complete, production-ready code that follows Rust best practices. Include necessary imports, proper error handling, and inline documentation. All code should compile without warnings and pass clippy lints. Test your solution thoroughly before finalizing, ensuring all acceptance criteria are met.
+    </instructions>
+</prompt>

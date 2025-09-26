@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<prompt>
+    <role>You are a senior Rust developer specializing in web API development with Axum, Serde, and data validation.</role>
+    <task>
+        <id>3</id>
+        <title>Data Models and Error Handling</title>
+        <description>Implement the User data model, request/response schemas, and error handling framework for a Rust REST API</description>
+        <priority>high</priority>
+        <status>pending</status>
+        <dependencies>1</dependencies>
+    </task>
+    <technical_specifications>
+        <spec>Create User struct with id (i32), name (String), email (String), created_at and updated_at (DateTime&lt;Utc&gt;)</spec>
+        <spec>Implement CreateUserRequest with required name and email fields with validation</spec>
+        <spec>Implement UpdateUserRequest with optional name and email fields with validation</spec>
+        <spec>Use validator crate version 0.16 with derive feature for field validation</spec>
+        <spec>Create ApiError enum with Validation, Database, NotFound, and InternalServerError variants</spec>
+        <spec>Implement IntoResponse trait for automatic HTTP response conversion</spec>
+        <spec>Create ErrorResponse struct with error code and message fields</spec>
+        <spec>Map error types to appropriate HTTP status codes (400, 404, 500)</spec>
+        <spec>Create generic validate_request function for request validation</spec>
+        <spec>Use thiserror crate for error derivation</spec>
+        <spec>Log database errors while hiding details from API responses</spec>
+    </technical_specifications>
+    <implementation_details>
+1. Create the User model in src/models/user.rs:
+```rust
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use validator::Validate;
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct User {
+    pub id: i32,
+    pub name: String,
+    pub email: String,
+    pub created_at: DateTime&lt;Utc&gt;,
+    pub updated_at: DateTime&lt;Utc&gt;,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateUserRequest {
+    #[validate(length(min = 1, max = 255))]
+    pub name: String,
+    #[validate(email)]
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct UpdateUserRequest {
+    #[validate(length(min = 1, max = 255))]
+    pub name: Option&lt;String&gt;,
+    #[validate(email)]
+    pub email: Option&lt;String&gt;,
+}
+```
+
+2. Create error handling framework in src/error.rs:
+```rust
+use axum::{response::{IntoResponse, Response}, http::StatusCode, Json};
+use serde::Serialize;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ApiError {
+    #[error("Validation error: {0}")]
+    Validation(String),
+    
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+    
+    #[error("Resource not found")]
+    NotFound,
+    
+    #[error("Internal server error")]
+    InternalServerError,
+}
+
+#[derive(Serialize)]
+pub struct ErrorResponse {
+    pub error: String,
+    pub message: String,
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        let (status, error_response) = match self {
+            ApiError::Validation(msg) => (
+                StatusCode::BAD_REQUEST,
+                ErrorResponse {
+                    error: "VALIDATION_ERROR".to_string(),
+                    message: msg,
+                },
+            ),
+            ApiError::NotFound => (
+                StatusCode::NOT_FOUND,
+                ErrorResponse {
+                    error: "NOT_FOUND".to_string(),
+                    message: "Resource not found".to_string(),
+                },
+            ),
+            ApiError::Database(e) => {
+                tracing::error!("Database error: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorResponse {
+                        error: "DATABASE_ERROR".to_string(),
+                        message: "A database error occurred".to_string(),
+                    },
+                )
+            },
+            ApiError::InternalServerError => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorResponse {
+                    error: "INTERNAL_ERROR".to_string(),
+                    message: "An internal error occurred".to_string(),
+                },
+            ),
+        };
+
+        (status, Json(error_response)).into_response()
+    }
+}
+
+pub type Result&lt;T&gt; = std::result::Result&lt;T, ApiError&gt;;
+```
+
+3. Create validation utility in src/models/validation.rs:
+```rust
+use validator::{Validate, ValidationErrors};
+use crate::error::ApiError;
+
+pub fn validate_request&lt;T: Validate&gt;(request: &amp;T) -> Result&lt;(), ApiError&gt; {
+    request.validate().map_err(|e: ValidationErrors| {
+        let message = e.to_string();
+        ApiError::Validation(message)
+    })
+}
+```
+
+4. Add validator dependency to Cargo.toml:
+```toml
+validator = { version = "0.16", features = ["derive"] }
+```
+
+5. Create module exports in src/models/mod.rs:
+```rust
+pub mod user;
+pub mod validation;
+
+pub use user::{User, CreateUserRequest, UpdateUserRequest};
+```
+    </implementation_details>
+    <acceptance_criteria>
+        <criterion>User model contains all required fields with proper types and derives</criterion>
+        <criterion>CreateUserRequest enforces required fields with validation</criterion>
+        <criterion>UpdateUserRequest handles optional fields correctly</criterion>
+        <criterion>Email validation rejects invalid email formats</criterion>
+        <criterion>Name validation enforces 1-255 character limit</criterion>
+        <criterion>ApiError enum covers all common error scenarios</criterion>
+        <criterion>Error responses return appropriate HTTP status codes</criterion>
+        <criterion>Database errors are logged but details not exposed to clients</criterion>
+        <criterion>Validation errors provide clear user-friendly messages</criterion>
+        <criterion>All code compiles without warnings</criterion>
+        <criterion>Module structure follows Rust conventions</criterion>
+        <criterion>No use of unwrap() or expect() in production code</criterion>
+    </acceptance_criteria>
+    <test_strategy>
+1. Unit test User model serialization/deserialization:
+```rust
+#[test]
+fn test_user_serialization() {
+    let user = User {
+        id: 1,
+        name: "Test User".to_string(),
+        email: "test@example.com".to_string(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+    
+    let json = serde_json::to_string(&amp;user).unwrap();
+    let deserialized: User = serde_json::from_str(&amp;json).unwrap();
+    
+    assert_eq!(user.id, deserialized.id);
+    assert_eq!(user.name, deserialized.name);
+    assert_eq!(user.email, deserialized.email);
+}
+```
+
+2. Test validation with valid and invalid inputs:
+```rust
+#[test]
+fn test_user_validation() {
+    // Valid request
+    let valid_req = CreateUserRequest {
+        name: "Test User".to_string(),
+        email: "test@example.com".to_string(),
+    };
+    assert!(validate_request(&amp;valid_req).is_ok());
+    
+    // Invalid email
+    let invalid_email = CreateUserRequest {
+        name: "Test User".to_string(),
+        email: "invalid-email".to_string(),
+    };
+    assert!(validate_request(&amp;invalid_email).is_err());
+    
+    // Empty name
+    let empty_name = CreateUserRequest {
+        name: "".to_string(),
+        email: "test@example.com".to_string(),
+    };
+    assert!(validate_request(&amp;empty_name).is_err());
+}
+```
+
+3. Test error response formatting:
+```rust
+#[test]
+fn test_error_response() {
+    let error = ApiError::NotFound;
+    let response = error.into_response();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    
+    let error = ApiError::Validation("Invalid email".to_string());
+    let response = error.into_response();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+```
+    </test_strategy>
+    <instructions>
+        Think step-by-step about the implementation approach. Consider the existing codebase structure and patterns.
+        Start by verifying the project structure and dependencies are in place from Task 1.
+        Implement each component systematically: first the models, then error handling, then validation.
+        Ensure all imports are correct and all code compiles without warnings.
+        Follow Rust best practices including proper error handling, no panics in production code, and clear module organization.
+        Test your implementation with the provided test cases to ensure correctness.
+        Remember to update Cargo.toml with the validator dependency before implementing validation.
+        Provide complete, production-ready code that follows best practices. Include necessary imports,
+        error handling, and documentation. Test your solution thoroughly before finalizing.
+    </instructions>
+</prompt>

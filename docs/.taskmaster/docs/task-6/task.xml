@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<prompt>
+    <role>You are a senior Rust developer specializing in testing infrastructure, CI/CD pipelines, and quality assurance for Rust-based REST APIs.</role>
+    <task>
+        <id>6</id>
+        <title>Comprehensive Testing Setup</title>
+        <description>Set up a comprehensive testing framework including unit tests, integration tests, test utilities, coverage reporting, and continuous integration through GitHub Actions for a Rust API project.</description>
+        <priority>medium</priority>
+        <status>pending</status>
+        <dependencies>5</dependencies>
+    </task>
+    <technical_specifications>
+        <spec>Create test utilities module in src/test_utils.rs with factory functions for test data generation</spec>
+        <spec>Configure isolated test database using PostgreSQL in Docker container</spec>
+        <spec>Implement database setup script for automated test environment provisioning</spec>
+        <spec>Integrate Tarpaulin for code coverage analysis and HTML report generation</spec>
+        <spec>Create test execution script that combines database setup and coverage reporting</spec>
+        <spec>Configure GitHub Actions workflow for continuous integration with caching and optimization</spec>
+        <spec>Ensure test isolation and reproducibility across different environments</spec>
+        <spec>Implement proper error handling and retry logic for flaky operations</spec>
+    </technical_specifications>
+    <implementation_details>
+        Create a test utilities module in src/test_utils.rs with conditional compilation using #[cfg(test)]. The module should include factory functions for creating test users and other test data. Each factory function should generate consistent, predictable test data with proper timestamp handling.
+
+        Set up test database configuration in .env.test with a dedicated PostgreSQL database for testing. The connection string should point to postgresql://postgres:password@localhost:5432/rust_api_test with debug logging enabled.
+
+        Implement a database setup script at scripts/setup_test_db.sh that manages a PostgreSQL Docker container. The script should check if the container exists, start it if needed, wait for the database to be ready, and create the test database if it doesn't exist. Include proper health checks and cleanup of stale containers.
+
+        Add Tarpaulin to dev-dependencies in Cargo.toml for coverage reporting. Configure it to generate HTML reports in the ./coverage directory with appropriate exclusion patterns for test code and generated files.
+
+        Create a test execution script at scripts/run_tests.sh that orchestrates the entire testing process. It should call the database setup script, run tests with coverage using Tarpaulin, and provide clear output about the test results and coverage report location.
+
+        Configure a GitHub Actions workflow in .github/workflows/ci.yml that runs on push to main and pull requests. The workflow should include a PostgreSQL service container, Rust toolchain setup with caching, SQLx migration execution, code formatting checks with rustfmt, linting with Clippy, and test execution with proper environment variables.
+
+        All scripts should be executable (chmod +x) and include proper error handling with informative messages. The testing infrastructure should support parallel test execution while maintaining isolation between tests.
+    </implementation_details>
+    <acceptance_criteria>
+        <criterion>Test utilities module created in src/test_utils.rs with working factory functions</criterion>
+        <criterion>Test database configuration file .env.test exists with proper settings</criterion>
+        <criterion>Database setup script successfully manages PostgreSQL container and creates test database</criterion>
+        <criterion>Tarpaulin integrated and generating HTML coverage reports in ./coverage directory</criterion>
+        <criterion>Test execution script runs all tests and generates coverage report successfully</criterion>
+        <criterion>GitHub Actions workflow configured and passing all checks</criterion>
+        <criterion>All existing tests continue to pass with new infrastructure</criterion>
+        <criterion>Test execution time under 2 minutes for complete suite</criterion>
+        <criterion>Minimum 70% code coverage achieved</criterion>
+        <criterion>Scripts are idempotent and can be run multiple times safely</criterion>
+    </acceptance_criteria>
+    <test_strategy>
+        Manual Testing:
+        1. Run ./scripts/setup_test_db.sh and verify PostgreSQL container starts and database is created
+        2. Execute cargo test and confirm all tests pass with test utilities available
+        3. Run ./scripts/run_tests.sh and verify coverage report generation
+        4. Open ./coverage/tarpaulin-report.html and confirm report is readable and accurate
+        5. Push code to test branch and verify CI workflow triggers and passes
+
+        Automated Testing:
+        1. GitHub Actions workflow runs automatically on push/PR
+        2. All CI jobs complete successfully with green checkmarks
+        3. Coverage metrics are displayed in CI logs
+        4. No security warnings or deprecated action usage
+
+        Performance Testing:
+        1. Measure test execution time to ensure under 2-minute target
+        2. Verify database setup completes in under 10 seconds
+        3. Confirm coverage generation takes less than 1 minute
+
+        Integration Testing:
+        1. Test utilities work correctly in actual test files
+        2. Database migrations run successfully in test environment
+        3. CI pipeline integrates with GitHub PR checks
+        4. Coverage reports are accessible and informative
+    </test_strategy>
+    <instructions>
+        Think step-by-step about the testing infrastructure requirements. Start by creating the test utilities module, then set up the test database configuration. Implement the database setup script with proper Docker container management. Add coverage tooling and create the test execution script. Finally, configure the CI/CD workflow.
+
+        Ensure all components work together seamlessly. Test each script locally before moving to the next component. Pay special attention to error handling and make scripts idempotent. The testing infrastructure should be reliable, fast, and easy to maintain.
+
+        Provide complete, production-ready implementations with proper error handling, logging, and documentation. Include clear comments in scripts and configuration files. Test the entire setup end-to-end before considering the task complete.
+    </instructions>
+</prompt>

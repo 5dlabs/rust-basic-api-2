@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<prompt>
+    <role>You are a senior Rust developer specializing in RESTful API development with Axum web framework.</role>
+    <task>
+        <id>5</id>
+        <title>API Route Handlers Implementation</title>
+        <description>Implement the API route handlers for all user endpoints using Axum</description>
+        <priority>high</priority>
+        <status>pending</status>
+        <dependencies>4</dependencies>
+    </task>
+    <technical_specifications>
+        <spec>Create five route handlers: get_users, get_user, create_user, update_user, delete_user</spec>
+        <spec>Use Axum State extractor to inject PgPool</spec>
+        <spec>Use Path extractor for URL parameters (user ID)</spec>
+        <spec>Use Json extractor for request bodies</spec>
+        <spec>Validate requests using validate_request before processing</spec>
+        <spec>Return appropriate HTTP status codes (200, 201, 204, 400, 404)</spec>
+        <spec>POST returns 201 Created with created resource</spec>
+        <spec>DELETE returns 204 No Content on success</spec>
+        <spec>Convert repository Option::None to ApiError::NotFound</spec>
+        <spec>Add tower-http TraceLayer for request logging</spec>
+        <spec>Configure router with all endpoints in main.rs</spec>
+        <spec>Add health check endpoint for monitoring</spec>
+    </technical_specifications>
+    <implementation_details>
+1. Create route handlers in src/routes/user_routes.rs:
+```rust
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
+use sqlx::PgPool;
+use crate::models::{User, CreateUserRequest, UpdateUserRequest, validation::validate_request};
+use crate::repository::{UserRepository, SqlxUserRepository};
+use crate::error::{ApiError, Result};
+
+// GET /users
+pub async fn get_users(State(pool): State&lt;PgPool&gt;) -> Result&lt;Json&lt;Vec&lt;User&gt;&gt;&gt; {
+    let repo = SqlxUserRepository::new(pool);
+    let users = repo.get_users().await?;
+    Ok(Json(users))
+}
+
+// GET /users/:id
+pub async fn get_user(State(pool): State&lt;PgPool&gt;, Path(id): Path&lt;i32&gt;) -> Result&lt;Json&lt;User&gt;&gt; {
+    let repo = SqlxUserRepository::new(pool);
+    let user = repo.get_user(id).await?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(user))
+}
+
+// POST /users
+pub async fn create_user(
+    State(pool): State&lt;PgPool&gt;,
+    Json(req): Json&lt;CreateUserRequest&gt;,
+) -> Result&lt;(StatusCode, Json&lt;User&gt;)&gt; {
+    validate_request(&amp;req)?;
+    
+    let repo = SqlxUserRepository::new(pool);
+    let user = repo.create_user(req).await?;
+    Ok((StatusCode::CREATED, Json(user)))
+}
+
+// PUT /users/:id
+pub async fn update_user(
+    State(pool): State&lt;PgPool&gt;,
+    Path(id): Path&lt;i32&gt;,
+    Json(req): Json&lt;UpdateUserRequest&gt;,
+) -> Result&lt;Json&lt;User&gt;&gt; {
+    validate_request(&amp;req)?;
+    
+    let repo = SqlxUserRepository::new(pool);
+    let user = repo.update_user(id, req).await?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(user))
+}
+
+// DELETE /users/:id
+pub async fn delete_user(
+    State(pool): State&lt;PgPool&gt;,
+    Path(id): Path&lt;i32&gt;,
+) -> Result&lt;StatusCode&gt; {
+    let repo = SqlxUserRepository::new(pool);
+    let deleted = repo.delete_user(id).await?;
+    
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+```
+
+2. Create src/routes/mod.rs:
+```rust
+mod user_routes;
+
+pub use user_routes::*;
+
+// Health check route
+pub async fn health_check() -> &amp;'static str {
+    "OK"
+}
+```
+
+3. Update main.rs router configuration:
+```rust
+use axum::{Router, routing};
+use tower_http::trace::TraceLayer;
+
+// Inside main function, after creating pool
+let app = Router::new()
+    .route("/health", routing::get(routes::health_check))
+    .route("/users", routing::get(routes::get_users))
+    .route("/users", routing::post(routes::create_user))
+    .route("/users/:id", routing::get(routes::get_user))
+    .route("/users/:id", routing::put(routes::update_user))
+    .route("/users/:id", routing::delete(routes::delete_user))
+    .layer(TraceLayer::new_for_http())
+    .with_state(pool);
+
+// Bind and serve
+let addr = "0.0.0.0:3000".parse().unwrap();
+tracing::info!("Server running on {}", addr);
+axum::Server::bind(&amp;addr)
+    .serve(app.into_make_service())
+    .await
+    .unwrap();
+```
+
+4. Add tower-http to Cargo.toml:
+```toml
+tower-http = { version = "0.4", features = ["trace"] }
+```
+    </implementation_details>
+    <acceptance_criteria>
+        <criterion>All five route handlers implemented and compile</criterion>
+        <criterion>GET /users returns array of users with 200 OK</criterion>
+        <criterion>GET /users/:id returns user or 404 Not Found</criterion>
+        <criterion>POST /users creates user and returns 201 Created</criterion>
+        <criterion>PUT /users/:id updates user and returns 200 OK</criterion>
+        <criterion>DELETE /users/:id removes user and returns 204 No Content</criterion>
+        <criterion>Validation errors return 400 Bad Request</criterion>
+        <criterion>Non-existent resources return 404 Not Found</criterion>
+        <criterion>Request logging enabled via TraceLayer</criterion>
+        <criterion>Health check endpoint returns "OK"</criterion>
+        <criterion>All handlers use proper Axum extractors</criterion>
+        <criterion>Database pool properly injected via State</criterion>
+        <criterion>No use of unwrap() or expect() in handlers</criterion>
+    </acceptance_criteria>
+    <test_strategy>
+Create integration tests for API endpoints:
+
+1. Test successful user creation:
+```rust
+#[tokio::test]
+async fn test_create_user_endpoint() {
+    let app = setup_router().await;
+    
+    let request = Request::builder()
+        .uri("/users")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Test User","email":"test@example.com"}"#))
+        .unwrap();
+        
+    let response = app.oneshot(request).await.unwrap();
+    
+    assert_eq!(response.status(), StatusCode::CREATED);
+    
+    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let user: User = serde_json::from_slice(&amp;body).unwrap();
+    
+    assert_eq!(user.name, "Test User");
+    assert_eq!(user.email, "test@example.com");
+}
+```
+
+2. Test validation errors:
+```rust
+#[tokio::test]
+async fn test_validation_errors() {
+    let app = setup_router().await;
+    
+    let request = Request::builder()
+        .uri("/users")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Test","email":"invalid"}"#))
+        .unwrap();
+        
+    let response = app.oneshot(request).await.unwrap();
+    
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+```
+
+3. Test not found errors:
+```rust
+#[tokio::test]
+async fn test_not_found_error() {
+    let app = setup_router().await;
+    
+    let request = Request::builder()
+        .uri("/users/9999")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+        
+    let response = app.oneshot(request).await.unwrap();
+    
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+```
+
+4. Manual testing with curl:
+```bash
+# Create user
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"name":"Test User","email":"test@example.com"}' \
+  http://localhost:3000/users
+
+# Get all users
+curl http://localhost:3000/users
+
+# Get specific user
+curl http://localhost:3000/users/1
+
+# Update user
+curl -X PUT -H "Content-Type: application/json" \
+  -d '{"name":"Updated Name"}' \
+  http://localhost:3000/users/1
+
+# Delete user
+curl -X DELETE http://localhost:3000/users/1
+
+# Health check
+curl http://localhost:3000/health
+```
+    </test_strategy>
+    <instructions>
+        Think step-by-step about the implementation approach. Consider the existing codebase structure and patterns.
+        Start by verifying that Task 4 is complete (repository implementation).
+        Create the route handlers file first, implementing each handler according to RESTful conventions.
+        Pay attention to proper use of Axum extractors and error handling.
+        Ensure validation is called before processing POST and PUT requests.
+        Remember to return appropriate HTTP status codes for each operation.
+        Configure the router in main.rs with all endpoints and middleware.
+        Test each endpoint to ensure it works correctly with the repository layer.
+        Follow Rust best practices including proper error handling and no use of unwrap() in production code.
+        Provide complete, production-ready code that follows best practices. Include necessary imports,
+        error handling, and documentation. Test your solution thoroughly before finalizing.
+    </instructions>
+</prompt>

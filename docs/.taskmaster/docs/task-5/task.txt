@@ -1,0 +1,245 @@
+# Task ID: 5
+# Title: API Route Handlers Implementation
+# Status: pending
+# Dependencies: 4
+# Priority: high
+# Description: Implement the API route handlers for all user endpoints using Axum
+# Details:
+1. Create the route handlers in src/routes/user_routes.rs:
+```rust
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
+use sqlx::PgPool;
+use crate::models::{User, CreateUserRequest, UpdateUserRequest, validation::validate_request};
+use crate::repository::{UserRepository, SqlxUserRepository};
+use crate::error::{ApiError, Result};
+
+// GET /users
+pub async fn get_users(State(pool): State<PgPool>) -> Result<Json<Vec<User>>> {
+    let repo = SqlxUserRepository::new(pool);
+    let users = repo.get_users().await?;
+    Ok(Json(users))
+}
+
+// GET /users/:id
+pub async fn get_user(State(pool): State<PgPool>, Path(id): Path<i32>) -> Result<Json<User>> {
+    let repo = SqlxUserRepository::new(pool);
+    let user = repo.get_user(id).await?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(user))
+}
+
+// POST /users
+pub async fn create_user(
+    State(pool): State<PgPool>,
+    Json(req): Json<CreateUserRequest>,
+) -> Result<(StatusCode, Json<User>)> {
+    validate_request(&req)?;
+    
+    let repo = SqlxUserRepository::new(pool);
+    let user = repo.create_user(req).await?;
+    Ok((StatusCode::CREATED, Json(user)))
+}
+
+// PUT /users/:id
+pub async fn update_user(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+    Json(req): Json<UpdateUserRequest>,
+) -> Result<Json<User>> {
+    validate_request(&req)?;
+    
+    let repo = SqlxUserRepository::new(pool);
+    let user = repo.update_user(id, req).await?
+        .ok_or(ApiError::NotFound)?;
+    Ok(Json(user))
+}
+
+// DELETE /users/:id
+pub async fn delete_user(
+    State(pool): State<PgPool>,
+    Path(id): Path<i32>,
+) -> Result<StatusCode> {
+    let repo = SqlxUserRepository::new(pool);
+    let deleted = repo.delete_user(id).await?;
+    
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+```
+
+2. Create src/routes/mod.rs to export the routes:
+```rust
+mod user_routes;
+
+pub use user_routes::*;
+
+// Health check route
+pub async fn health_check() -> &'static str {
+    "OK"
+}
+```
+
+3. Update main.rs to set up the router with all endpoints:
+```rust
+// Inside main function, after creating the pool
+let app = Router::new()
+    .route("/health", axum::routing::get(routes::health_check))
+    .route("/users", axum::routing::get(routes::get_users))
+    .route("/users", axum::routing::post(routes::create_user))
+    .route("/users/:id", axum::routing::get(routes::get_user))
+    .route("/users/:id", axum::routing::put(routes::update_user))
+    .route("/users/:id", axum::routing::delete(routes::delete_user))
+    .with_state(pool);
+```
+
+4. Add middleware for request logging:
+```rust
+use tower_http::trace::TraceLayer;
+
+// Add this to the router chain
+let app = Router::new()
+    // ... routes
+    .layer(TraceLayer::new_for_http())
+    .with_state(pool);
+```
+
+5. Add tower-http to Cargo.toml:
+```toml
+tower-http = { version = "0.4", features = ["trace"] }
+```
+
+# Test Strategy:
+1. Create integration tests for the API endpoints in src/routes/user_routes_test.rs:
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+        routing::{get, post, put, delete},
+        Router,
+    };
+    use tower::ServiceExt;
+    use crate::repository::test_utils::setup_test_database;
+    
+    async fn setup_router() -> Router {
+        let pool = setup_test_database().await;
+        Router::new()
+            .route("/users", get(get_users))
+            .route("/users", post(create_user))
+            .route("/users/:id", get(get_user))
+            .route("/users/:id", put(update_user))
+            .route("/users/:id", delete(delete_user))
+            .with_state(pool)
+    }
+    
+    #[tokio::test]
+    async fn test_create_user_endpoint() {
+        let app = setup_router().await;
+        
+        let request = Request::builder()
+            .uri("/users")
+            .method("POST")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"name":"Test User","email":"test@example.com"}"#))
+            .unwrap();
+            
+        let response = app.oneshot(request).await.unwrap();
+        
+        assert_eq!(response.status(), StatusCode::CREATED);
+        
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let user: User = serde_json::from_slice(&body).unwrap();
+        
+        assert_eq!(user.name, "Test User");
+        assert_eq!(user.email, "test@example.com");
+    }
+    
+    #[tokio::test]
+    async fn test_get_user_endpoint() {
+        let app = setup_router().await;
+        
+        // First create a user
+        let create_request = Request::builder()
+            .uri("/users")
+            .method("POST")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"name":"Get Test","email":"get@example.com"}"#))
+            .unwrap();
+            
+        let create_response = app.clone().oneshot(create_request).await.unwrap();
+        let create_body = hyper::body::to_bytes(create_response.into_body()).await.unwrap();
+        let created_user: User = serde_json::from_slice(&create_body).unwrap();
+        
+        // Now get the user
+        let get_request = Request::builder()
+            .uri(format!("/users/{}", created_user.id))
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+            
+        let get_response = app.oneshot(get_request).await.unwrap();
+        
+        assert_eq!(get_response.status(), StatusCode::OK);
+        
+        let get_body = hyper::body::to_bytes(get_response.into_body()).await.unwrap();
+        let user: User = serde_json::from_slice(&get_body).unwrap();
+        
+        assert_eq!(user.id, created_user.id);
+        assert_eq!(user.name, "Get Test");
+    }
+    
+    // Add similar tests for update_user, delete_user, and get_users endpoints
+}
+```
+
+2. Test validation error responses:
+```rust
+#[tokio::test]
+async fn test_validation_errors() {
+    let app = setup_router().await;
+    
+    // Test invalid email
+    let request = Request::builder()
+        .uri("/users")
+        .method("POST")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"name":"Test User","email":"invalid-email"}"#))
+        .unwrap();
+        
+    let response = app.oneshot(request).await.unwrap();
+    
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    
+    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let error: ErrorResponse = serde_json::from_slice(&body).unwrap();
+    
+    assert_eq!(error.error, "VALIDATION_ERROR");
+}
+```
+
+3. Test not found errors:
+```rust
+#[tokio::test]
+async fn test_not_found_error() {
+    let app = setup_router().await;
+    
+    let request = Request::builder()
+        .uri("/users/9999")
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+        
+    let response = app.oneshot(request).await.unwrap();
+    
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+```

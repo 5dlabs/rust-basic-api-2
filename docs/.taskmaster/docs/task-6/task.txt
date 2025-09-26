@@ -1,0 +1,161 @@
+# Task ID: 6
+# Title: Comprehensive Testing Setup
+# Status: pending
+# Dependencies: 5
+# Priority: medium
+# Description: Set up a comprehensive testing framework including unit tests, integration tests, and test utilities
+# Details:
+1. Create a test utilities module in src/test_utils.rs:
+```rust
+#[cfg(test)]
+pub mod test_utils {
+    use crate::models::User;
+    use chrono::Utc;
+    
+    pub fn create_test_user(id: i32) -> User {
+        User {
+            id,
+            name: format!("Test User {}", id),
+            email: format!("test{}@example.com", id),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+}
+```
+
+2. Set up a test database configuration in .env.test:
+```
+DATABASE_URL=postgresql://postgres:password@localhost:5432/rust_api_test
+RUST_LOG=debug
+```
+
+3. Create a script to set up the test database in scripts/setup_test_db.sh:
+```bash
+#!/bin/bash
+set -e
+
+PG_CONTAINER="postgres_test"
+PG_USER="postgres"
+PG_PASSWORD="password"
+PG_DB="rust_api_test"
+
+# Start PostgreSQL container for testing if not running
+if [ ! "$(docker ps -q -f name=$PG_CONTAINER)" ]; then
+    if [ "$(docker ps -aq -f name=$PG_CONTAINER)" ]; then
+        # Cleanup if container exists but is not running
+        docker rm $PG_CONTAINER
+    fi
+    
+    echo "Starting PostgreSQL container for testing..."
+    docker run --name $PG_CONTAINER -e POSTGRES_PASSWORD=$PG_PASSWORD \
+        -e POSTGRES_DB=$PG_DB -p 5432:5432 -d postgres:15
+    
+    # Wait for PostgreSQL to start
+    echo "Waiting for PostgreSQL to start..."
+    sleep 5
+fi
+
+# Create test database if it doesn't exist
+docker exec -it $PG_CONTAINER psql -U $PG_USER -c "SELECT 1 FROM pg_database WHERE datname = '$PG_DB'" | grep -q 1 || \
+    docker exec -it $PG_CONTAINER psql -U $PG_USER -c "CREATE DATABASE $PG_DB"
+
+echo "Test database setup complete"
+```
+
+4. Add a test coverage tool to Cargo.toml:
+```toml
+[dev-dependencies]
+tarpaulin = "0.25"
+```
+
+5. Create a script to run tests with coverage in scripts/run_tests.sh:
+```bash
+#!/bin/bash
+set -e
+
+# Setup test database
+./scripts/setup_test_db.sh
+
+# Run tests with coverage
+cargo tarpaulin --out Html --output-dir ./coverage
+
+echo "Tests completed. Coverage report available in ./coverage/tarpaulin-report.html"
+```
+
+6. Add a GitHub Actions workflow for CI in .github/workflows/ci.yml:
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: rust_api_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+        components: rustfmt, clippy
+    
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Install SQLx CLI
+      run: cargo install sqlx-cli --no-default-features --features native-tls,postgres
+    
+    - name: Run migrations
+      run: sqlx migrate run
+      env:
+        DATABASE_URL: postgresql://postgres:password@localhost:5432/rust_api_test
+    
+    - name: Check formatting
+      run: cargo fmt -- --check
+    
+    - name: Clippy
+      run: cargo clippy -- -D warnings
+    
+    - name: Run tests
+      run: cargo test
+      env:
+        DATABASE_URL: postgresql://postgres:password@localhost:5432/rust_api_test
+        RUST_LOG: debug
+```
+
+# Test Strategy:
+1. Run unit tests with `cargo test --lib`
+2. Run integration tests with `cargo test --test '*'`
+3. Verify test coverage with `cargo tarpaulin`
+4. Test the GitHub Actions workflow by pushing to a test branch
+5. Verify that all tests pass in the CI environment
+6. Check that the test database setup script works correctly
+7. Verify that the test utilities are working as expected

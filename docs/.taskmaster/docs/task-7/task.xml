@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<prompt>
+    <role>You are a senior DevOps engineer specializing in Docker containerization, Kubernetes orchestration, and deployment automation for Rust-based microservices.</role>
+    <task>
+        <id>7</id>
+        <title>Containerization and Deployment Setup</title>
+        <description>Set up Docker containerization with multi-stage builds and Kubernetes deployment configuration including manifests, health probes, and deployment automation scripts for a Rust API project.</description>
+        <priority>medium</priority>
+        <status>pending</status>
+        <dependencies>5</dependencies>
+    </task>
+    <technical_specifications>
+        <spec>Create multi-stage Dockerfile with separate build and runtime stages for optimized image size</spec>
+        <spec>Configure Docker Compose for local development environment with PostgreSQL and API services</spec>
+        <spec>Implement Kubernetes deployment manifest with 3 replicas, resource limits, and health probes</spec>
+        <spec>Create Kubernetes service manifest for internal cluster routing and load balancing</spec>
+        <spec>Develop build script for automated Docker image building with git-based versioning</spec>
+        <spec>Implement deployment script for automated Kubernetes manifest application</spec>
+        <spec>Configure readiness and liveness probes for container health monitoring</spec>
+        <spec>Set up volume mounts for development hot-reload capability</spec>
+        <spec>Implement proper secret management for database credentials</spec>
+    </technical_specifications>
+    <implementation_details>
+        Create a multi-stage Dockerfile in the project root that uses rust:1.70 as the builder stage. Implement dependency caching by copying Cargo.toml and Cargo.lock first, creating a dummy main.rs to build dependencies separately. After building dependencies, copy the actual source code and build the release binary. 
+
+        For the runtime stage, use debian:bullseye-slim as the base image. Install only essential runtime dependencies (ca-certificates and libssl-dev). Copy the compiled binary from the builder stage along with database migration files. Expose port 3000 and set the appropriate CMD.
+
+        Configure docker-compose.yml with version 3.8, defining two services: postgres and api. The postgres service should use PostgreSQL 15 with environment variables for database configuration and a named volume for data persistence. The api service should build from the Dockerfile, depend on postgres, map port 3000, and include environment variables for DATABASE_URL and logging.
+
+        Create Kubernetes deployment manifest at k8s/deployment.yaml with apiVersion apps/v1. Configure 3 replicas with proper label selectors. Define container specifications including the image, port 3000, environment variables from secrets, and resource requests/limits (128Mi/512Mi memory, 100m/500m CPU). Implement readiness and liveness probes pointing to /health endpoint with appropriate timing configurations.
+
+        Define a Kubernetes service at k8s/service.yaml with ClusterIP type, mapping port 80 to targetPort 3000. Ensure selector labels match the deployment.
+
+        Implement scripts/build_image.sh that captures the git commit SHA for image tagging, builds the Docker image with both SHA and latest tags, and provides clear output about the build process.
+
+        Create scripts/deploy_k8s.sh that applies Kubernetes manifests to a configurable namespace, includes error handling, and reports deployment status.
+
+        All scripts should be executable (chmod +x) and include proper error handling with set -e. Include informative echo statements for user feedback.
+    </implementation_details>
+    <acceptance_criteria>
+        <criterion>Dockerfile created with successful multi-stage build producing image under 200MB</criterion>
+        <criterion>Docker Compose configuration starts all services and enables local development</criterion>
+        <criterion>Container runs successfully and connects to PostgreSQL database</criterion>
+        <criterion>Kubernetes deployment manifest creates 3 running pods with passing health probes</criterion>
+        <criterion>Kubernetes service properly routes traffic to pods</criterion>
+        <criterion>Build script successfully creates and tags Docker images with git SHA</criterion>
+        <criterion>Deploy script applies Kubernetes manifests without errors</criterion>
+        <criterion>Health endpoint accessible at /health returning 200 status</criterion>
+        <criterion>Pods can scale up and down successfully</criterion>
+        <criterion>Container handles graceful shutdown on SIGTERM</criterion>
+    </acceptance_criteria>
+    <test_strategy>
+        Docker Testing:
+        1. Build image with docker build -t rust-basic-api:test .
+        2. Run container with docker run -p 3000:3000 rust-basic-api:test
+        3. Start Docker Compose environment with docker-compose up -d
+        4. Verify API accessibility at http://localhost:3000
+        5. Test health endpoint with curl http://localhost:3000/health
+        6. Check container logs with docker-compose logs
+        7. Verify database connection from container
+
+        Kubernetes Testing:
+        1. Validate manifests with kubectl apply --dry-run=client -f k8s/
+        2. Deploy to local cluster (minikube/kind) with ./scripts/deploy_k8s.sh
+        3. Check pod status with kubectl get pods
+        4. Verify all 3 replicas are running and ready
+        5. Test service routing with kubectl port-forward
+        6. Check health probe status with kubectl describe pods
+        7. Test scaling with kubectl scale deployment/rust-basic-api --replicas=5
+        8. Verify pod distribution with kubectl get pods -o wide
+        
+        Script Testing:
+        1. Execute ./scripts/build_image.sh and verify image creation
+        2. Check image tagging with docker images
+        3. Run ./scripts/deploy_k8s.sh and verify manifest application
+        4. Confirm deployment status with kubectl rollout status
+
+        Performance Testing:
+        1. Measure image build time (should be under 5 minutes)
+        2. Check final image size with docker images
+        3. Monitor container startup time
+        4. Verify memory usage stays under limits
+    </test_strategy>
+    <instructions>
+        Think step-by-step about the containerization requirements. Start with the Dockerfile, ensuring proper multi-stage build optimization and dependency caching. Then create the Docker Compose configuration for local development.
+
+        When implementing Kubernetes manifests, pay careful attention to resource limits, health probes, and proper label selection. Ensure the deployment and service work together correctly.
+
+        For the automation scripts, focus on reliability and user feedback. Include proper error handling and informative output messages. Make scripts idempotent so they can be run multiple times safely.
+
+        Test each component individually before integration. Verify the Docker image builds and runs correctly, then test the Kubernetes deployment in a local cluster. Ensure all health checks pass and the application is accessible.
+
+        Provide complete, production-ready implementations with proper error handling, security considerations, and performance optimizations. Document any assumptions or prerequisites clearly.
+    </instructions>
+</prompt>

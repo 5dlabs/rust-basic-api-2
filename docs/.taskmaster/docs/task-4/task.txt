@@ -1,0 +1,256 @@
+# Task ID: 4
+# Title: User Repository Implementation
+# Status: pending
+# Dependencies: 2, 3
+# Priority: high
+# Description: Implement the UserRepository trait and SQLx-based implementation for database operations
+# Details:
+1. Create the repository trait in src/repository/user_repository.rs:
+```rust
+use async_trait::async_trait;
+use crate::models::{User, CreateUserRequest, UpdateUserRequest};
+use crate::error::{ApiError, Result};
+
+#[async_trait]
+pub trait UserRepository {
+    async fn create_user(&self, req: CreateUserRequest) -> Result<User>;
+    async fn get_user(&self, id: i32) -> Result<Option<User>>;
+    async fn get_users(&self) -> Result<Vec<User>>;
+    async fn update_user(&self, id: i32, req: UpdateUserRequest) -> Result<Option<User>>;
+    async fn delete_user(&self, id: i32) -> Result<bool>;
+}
+```
+
+2. Implement the SQLx-based repository:
+```rust
+use sqlx::PgPool;
+
+pub struct SqlxUserRepository {
+    pool: PgPool,
+}
+
+impl SqlxUserRepository {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+}
+
+#[async_trait]
+impl UserRepository for SqlxUserRepository {
+    async fn create_user(&self, req: CreateUserRequest) -> Result<User> {
+        let user = sqlx::query_as!(User,
+            r#"INSERT INTO users (name, email) VALUES ($1, $2) 
+               RETURNING id, name, email, created_at, updated_at"#,
+            req.name, req.email
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+        
+        Ok(user)
+    }
+    
+    async fn get_user(&self, id: i32) -> Result<Option<User>> {
+        let user = sqlx::query_as!(User,
+            r#"SELECT id, name, email, created_at, updated_at FROM users WHERE id = $1"#,
+            id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+        
+        Ok(user)
+    }
+    
+    async fn get_users(&self) -> Result<Vec<User>> {
+        let users = sqlx::query_as!(User,
+            r#"SELECT id, name, email, created_at, updated_at FROM users ORDER BY id"#
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(ApiError::Database)?;
+        
+        Ok(users)
+    }
+    
+    async fn update_user(&self, id: i32, req: UpdateUserRequest) -> Result<Option<User>> {
+        // First check if user exists
+        let existing = self.get_user(id).await?;
+        if existing.is_none() {
+            return Ok(None);
+        }
+        
+        // Build dynamic update query
+        let mut query = String::from("UPDATE users SET updated_at = NOW()");
+        let mut params = vec![];
+        
+        if let Some(name) = &req.name {
+            params.push(name.clone());
+            query.push_str(&format!(", name = ${}", params.len()));
+        }
+        
+        if let Some(email) = &req.email {
+            params.push(email.clone());
+            query.push_str(&format!(", email = ${}", params.len()));
+        }
+        
+        params.push(id.to_string());
+        query.push_str(&format!(
+            " WHERE id = ${} RETURNING id, name, email, created_at, updated_at",
+            params.len()
+        ));
+        
+        let user = sqlx::query_as::<_, User>(&query)
+            .bind_all(params)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(ApiError::Database)?;
+            
+        Ok(Some(user))
+    }
+    
+    async fn delete_user(&self, id: i32) -> Result<bool> {
+        let result = sqlx::query!("DELETE FROM users WHERE id = $1", id)
+            .execute(&self.pool)
+            .await
+            .map_err(ApiError::Database)?;
+            
+        Ok(result.rows_affected() > 0)
+    }
+}
+```
+
+3. Update src/repository/mod.rs to export the repository:
+```rust
+mod user_repository;
+
+pub use user_repository::{UserRepository, SqlxUserRepository};
+
+// Keep the existing create_pool function
+```
+
+4. Add async-trait to Cargo.toml:
+```toml
+async-trait = "0.1"
+```
+
+# Test Strategy:
+1. Create integration tests for the repository in src/repository/user_repository_test.rs:
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::repository::test_utils::setup_test_database;
+    
+    #[sqlx::test]
+    async fn test_create_user() {
+        let pool = setup_test_database().await;
+        let repo = SqlxUserRepository::new(pool);
+        
+        let req = CreateUserRequest {
+            name: "Test User".to_string(),
+            email: "test@example.com".to_string(),
+        };
+        
+        let user = repo.create_user(req).await.unwrap();
+        assert_eq!(user.name, "Test User");
+        assert_eq!(user.email, "test@example.com");
+        assert!(user.id > 0);
+    }
+    
+    #[sqlx::test]
+    async fn test_get_user() {
+        let pool = setup_test_database().await;
+        let repo = SqlxUserRepository::new(pool);
+        
+        // Create a user first
+        let req = CreateUserRequest {
+            name: "Get Test".to_string(),
+            email: "get@example.com".to_string(),
+        };
+        
+        let created = repo.create_user(req).await.unwrap();
+        
+        // Now retrieve it
+        let user = repo.get_user(created.id).await.unwrap().unwrap();
+        assert_eq!(user.id, created.id);
+        assert_eq!(user.name, "Get Test");
+    }
+    
+    #[sqlx::test]
+    async fn test_update_user() {
+        let pool = setup_test_database().await;
+        let repo = SqlxUserRepository::new(pool);
+        
+        // Create a user first
+        let req = CreateUserRequest {
+            name: "Update Test".to_string(),
+            email: "update@example.com".to_string(),
+        };
+        
+        let created = repo.create_user(req).await.unwrap();
+        
+        // Update the user
+        let update_req = UpdateUserRequest {
+            name: Some("Updated Name".to_string()),
+            email: None,
+        };
+        
+        let updated = repo.update_user(created.id, update_req).await.unwrap().unwrap();
+        assert_eq!(updated.id, created.id);
+        assert_eq!(updated.name, "Updated Name");
+        assert_eq!(updated.email, "update@example.com"); // Email unchanged
+    }
+    
+    #[sqlx::test]
+    async fn test_delete_user() {
+        let pool = setup_test_database().await;
+        let repo = SqlxUserRepository::new(pool);
+        
+        // Create a user first
+        let req = CreateUserRequest {
+            name: "Delete Test".to_string(),
+            email: "delete@example.com".to_string(),
+        };
+        
+        let created = repo.create_user(req).await.unwrap();
+        
+        // Delete the user
+        let deleted = repo.delete_user(created.id).await.unwrap();
+        assert!(deleted);
+        
+        // Verify it's gone
+        let user = repo.get_user(created.id).await.unwrap();
+        assert!(user.is_none());
+    }
+}
+```
+
+2. Test with transactions to ensure database isolation:
+```rust
+#[sqlx::test]
+async fn test_with_transaction() {
+    let pool = setup_test_database().await;
+    let mut tx = pool.begin().await.unwrap();
+    
+    // Create a user in the transaction
+    let user = sqlx::query_as!(User,
+        r#"INSERT INTO users (name, email) VALUES ($1, $2) 
+           RETURNING id, name, email, created_at, updated_at"#,
+        "Transaction Test", "tx@example.com"
+    )
+    .fetch_one(&mut tx)
+    .await
+    .unwrap();
+    
+    assert_eq!(user.name, "Transaction Test");
+    
+    // Rollback the transaction
+    tx.rollback().await.unwrap();
+    
+    // Verify the user doesn't exist in the database
+    let repo = SqlxUserRepository::new(pool);
+    let result = repo.get_user(user.id).await.unwrap();
+    assert!(result.is_none());
+}
+```
