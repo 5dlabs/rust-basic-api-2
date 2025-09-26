@@ -8,15 +8,16 @@
       "sourceBranch": "main"
     },
     "code": {
-      "model": "claude-opus-4-1-20250805",
+      "model": "gpt-5-codex",
+      "cli": "codex",
       "githubApp": "5DLabs-Rex",
       "continueSession": false,
       "workingDirectory": ".",
       "overwriteMemory": false,
-      "repository": "5dlabs/cto",
-      "docsRepository": "5dlabs/cto",
+      "repository": "5dlabs/rust-basic-api",
+      "docsRepository": "5dlabs/rust-basic-api",
       "docsProjectDirectory": "docs",
-      "service": "cto"
+      "service": "rust-basic-api"
     },
     "intake": {
       "githubApp": "5DLabs-Morgan",
@@ -34,16 +35,16 @@
       }
     },
     "play": {
-      "model": "claude-sonnet-4-20250514",
-      "cli": "claude",
+      "model": "gpt-5-codex",
+      "cli": "codex",
       "implementationAgent": "5DLabs-Rex",
       "qualityAgent": "5DLabs-Cleo",
       "testingAgent": "5DLabs-Tess",
-      "repository": "5dlabs/cto-play-test",
-      "service": "cto-play-test",
-      "docsRepository": "5dlabs/cto-play-test",
+      "repository": "5dlabs/rust-basic-api",
+      "service": "trader",
+      "docsRepository": "5dlabs/rust-basic-api",
       "docsProjectDirectory": "docs",
-      "workingDirectory": "/Users/jonathonfritz/cto-play-test"
+      "workingDirectory": "/Users/jonathonfritz/code/work-projects/5dlabs/rust-basic-api"
     },
     "docs_ingest": {
       "model": "claude-sonnet-4-20250514",
@@ -54,28 +55,28 @@
     "morgan": {
       "githubApp": "5DLabs-Morgan",
       "cli": "claude",
-      "model": "claude-sonnet-4-20250514",
+      "model": "claude-opus-4-1-20250805",
       "tools": {
-        "remote": ["brave_web_search"],
+        "remote": [
+          "brave_web_search",
+          "context7_get_library_docs",
+          "rustdocs_query_rust_docs"
+        ],
         "localServers": {}
       }
     },
     "rex": {
       "githubApp": "5DLabs-Rex",
-      "cli": "claude",
-      "model": "claude-sonnet-4-20250514",
+      "cli": "codex",
+      "model": "gpt-5-codex",
       "tools": {
-        "remote": ["memory_create_entities", "memory_add_observations", "rustdocs_query_rust_docs"],
-        "localServers": {
-          "filesystem": {
-            "enabled": true,
-            "tools": ["read_file", "write_file", "list_directory", "search_files", "directory_tree"]
-          },
-          "git": {
-            "enabled": true,
-            "tools": ["git_status", "git_diff", "git_log", "git_show"]
-          }
-        }
+        "remote": [
+          "brave_web_search",
+          "solana_Solana_Expert__Ask_For_Help",
+          "context7_get_library_docs",
+          "rustdocs_query_rust_docs"
+        ],
+        "localServers": {}
       }
     },
     "cleo": {
@@ -83,17 +84,16 @@
       "cli": "claude",
       "model": "claude-sonnet-4-20250514",
       "tools": {
-        "remote": ["memory_create_entities", "memory_add_observations", "rustdocs_query_rust_docs"],
-        "localServers": {
-          "filesystem": {
-            "enabled": true,
-            "tools": ["read_file", "write_file", "list_directory", "search_files", "directory_tree"]
-          },
-          "git": {
-            "enabled": true,
-            "tools": ["git_status", "git_diff", "git_log", "git_show"]
-          }
-        }
+        "remote": [
+          "memory_create_entities",
+          "memory_add_observations",
+          "brave_web_search",
+          "solana_Solana_Expert__Ask_For_Help",
+          "context7_get_library_docs",
+          "rustdocs_query_rust_docs",
+          "agent_docs_add_rust_crate"
+        ],
+        "localServers": {}
       }
     },
     "tess": {
@@ -101,23 +101,36 @@
       "cli": "claude",
       "model": "claude-sonnet-4-20250514",
       "tools": {
-        "remote": ["memory_create_entities", "memory_add_observations"],
-        "localServers": {
-          "filesystem": {
-            "enabled": true,
-            "tools": ["read_file", "write_file", "list_directory", "search_files", "directory_tree"]
-          },
-          "git": {
-            "enabled": true,
-            "tools": ["git_status", "git_diff"]
-          }
-        }
+        "remote": [
+          "brave_web_search",
+          "solana_Solana_Expert__Ask_For_Help",
+          "context7_get_library_docs",
+          "rustdocs_query_rust_docs",
+          "agent_docs_add_rust_crate",
+          "kubernetes_helmInstall",
+          "kubernetes_helmRollback",
+          "kubernetes_getPodMetrics",
+          "kubernetes_getPodsLogs",
+          "kubernetes_describeResource",
+          "kubernetes_listResources",
+          "kubernetes_getEvents",
+          "kubernetes_getNodeMetrics",
+          "kubernetes_helmList",
+          "kubernetes_helmGet",
+          "kubernetes_helmUpgrade",
+          "kubernetes_helmRepoAdd",
+          "kubernetes_helmRepoList",
+          "kubernetes_getResource",
+          "kubernetes_helmUninstall",
+          "kubernetes_createResource"
+        ],
+        "localServers": {}
       }
     },
     "blaze": {
       "githubApp": "5DLabs-Blaze",
-      "cli": "claude",
-      "model": "claude-sonnet-4-20250514",
+      "cli": "codex",
+      "model": "gpt-5-codex",
       "tools": {
         "remote": ["memory_create_entities", "memory_add_observations", "brave_web_search"],
         "localServers": {
@@ -134,8 +147,8 @@
     },
     "cipher": {
       "githubApp": "5DLabs-Cipher",
-      "cli": "claude",
-      "model": "claude-sonnet-4-20250514",
+      "cli": "codex",
+      "model": "gpt-5-codex",
       "tools": {
         "remote": ["memory_create_entities", "memory_add_observations", "brave_web_search"],
         "localServers": {
