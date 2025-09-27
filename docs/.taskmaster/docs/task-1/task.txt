@@ -97,11 +97,11 @@ async fn health_check() -> &'static str {
     "OK"
 }
 ```
-6. Create a Dockerfile and docker-compose.yml as specified in the PRD
+6. Create a Dockerfile as specified in the PRD
 
 # Test Strategy:
 1. Verify project builds with `cargo build`
 2. Run the server locally and test the health endpoint with `curl http://localhost:3000/health`
-3. Verify Docker setup works with `docker-compose up -d` and test the health endpoint
+3. Verify Docker setup works with `docker run -p 3000:3000 -e DATABASE_URL=your_database_url rust-basic-api` and test the health endpoint
 4. Check that environment variables are correctly loaded by setting test values
 5. Verify logging is working by checking console output

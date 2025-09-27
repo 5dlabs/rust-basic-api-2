@@ -50,12 +50,6 @@
   - [ ] Slim runtime image
   - [ ] Proper COPY commands
   - [ ] EXPOSE 3000 directive
-- [ ] `docker-compose.yml` exists with:
-  - [ ] App service definition
-  - [ ] PostgreSQL database service
-  - [ ] Proper networking between services
-  - [ ] Volume for database persistence
-  - [ ] Environment variables configuration
 
 ## Functional Tests
 
@@ -93,17 +87,9 @@ docker build -t rust-basic-api .
 ```
 **Expected**: Docker image builds successfully
 
-### 6. Docker Compose Test
+### 6. Container Health Check
 ```bash
-docker-compose up -d
-docker-compose ps
-```
-**Expected**: 
-- Both app and db services are running
-- No error states
-
-### 7. Container Health Check
-```bash
+docker run -p 3000:3000 -e DATABASE_URL=your_database_url rust-basic-api
 curl http://localhost:3000/health
 ```
 **Expected**: Response "OK" from containerized application
@@ -134,6 +120,5 @@ curl http://localhost:3000/health
 3. Server runs and responds to health checks
 4. Environment variable configuration works
 5. Docker image builds successfully
-6. Docker Compose stack runs without errors
-7. All functional tests pass
-8. Code meets quality standards
+6. All functional tests pass
+7. Code meets quality standards

@@ -39,7 +39,6 @@ Implement:
 ### 5. Containerization
 Create:
 - Multi-stage Dockerfile for optimized builds
-- Docker Compose configuration with PostgreSQL database
 - Environment variable configuration
 
 ## Execution Steps
@@ -69,7 +68,6 @@ Create:
 
 6. **Create Docker Configuration**
    - Write multi-stage Dockerfile
-   - Create docker-compose.yml with app and database services
 
 7. **Create Environment Template**
    - Create `.env.example` with all required variables
@@ -81,7 +79,7 @@ Verify the implementation by:
 2. Starting the server with `cargo run`
 3. Testing health endpoint: `curl http://localhost:3000/health`
 4. Building Docker image: `docker build -t rust-basic-api .`
-5. Running with Docker Compose: `docker-compose up`
+5. Running with Docker: `docker run -p 3000:3000 -e DATABASE_URL=your_database_url rust-basic-api`
 
 ## Expected Outcome
 
@@ -90,7 +88,7 @@ A fully initialized Rust project with:
 - Health check endpoint returning "OK"
 - Proper logging to console
 - Docker containerization support
-- PostgreSQL database connectivity preparation
+- Database connectivity via DATABASE_URL environment variable
 - Modular code structure for future expansion
 
 ## Notes

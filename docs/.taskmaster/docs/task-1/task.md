@@ -161,41 +161,11 @@ EXPOSE 3000
 CMD ["./rust-basic-api"]
 ```
 
-Create `docker-compose.yml`:
-
-```yaml
-version: '3.8'
-services:
-  app:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/mydb
-      - SERVER_PORT=3000
-    depends_on:
-      - db
-  
-  db:
-    image: postgres:14
-    environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=mydb
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-volumes:
-  postgres_data:
-```
-
 ### Step 7: Environment Configuration
 Create `.env.example`:
 
 ```
-DATABASE_URL=postgresql://user:password@localhost:5432/mydb
+DATABASE_URL=postgresql://user:password@your-database-host:5432/your-database
 SERVER_PORT=3000
 RUST_LOG=info
 ```
@@ -203,8 +173,8 @@ RUST_LOG=info
 ## Dependencies and Prerequisites
 - Rust 1.70 or later
 - Cargo package manager
-- Docker and Docker Compose (optional for containerization)
-- PostgreSQL database (for later tasks)
+- Docker (optional for containerization)
+- Access to a PostgreSQL database (via DATABASE_URL environment variable)
 
 ## Related Tasks
 - Task 2: Database Setup (depends on this task)

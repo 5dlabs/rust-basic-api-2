@@ -16,7 +16,6 @@
         <spec>Implement main.rs with async Tokio runtime, tracing initialization, and Axum server setup</spec>
         <spec>Add health check endpoint at /health returning "OK"</spec>
         <spec>Create multi-stage Dockerfile for optimized container builds</spec>
-        <spec>Configure docker-compose.yml with app and PostgreSQL services</spec>
         <spec>Create .env.example template with DATABASE_URL, SERVER_PORT, and RUST_LOG variables</spec>
     </technical_specifications>
     <implementation_details>
@@ -70,14 +69,9 @@
            - Use debian:bullseye-slim for runtime
            - Copy built binary and expose port 3000
            
-           docker-compose.yml:
-           - Define app service with build context
-           - Configure PostgreSQL database service
-           - Set up networking and volumes
-           - Pass environment variables
         
         7. Environment Template (.env.example):
-           DATABASE_URL=postgresql://user:password@localhost:5432/mydb
+           DATABASE_URL=postgresql://user:password@your-database-host:5432/your-database
            SERVER_PORT=3000
            RUST_LOG=info
     </implementation_details>
@@ -88,7 +82,6 @@
         <criterion>Environment variables are loaded correctly from .env file</criterion>
         <criterion>Logging outputs to console with configured level</criterion>
         <criterion>Docker image builds without errors</criterion>
-        <criterion>Docker Compose stack runs with app and database services</criterion>
         <criterion>All module files exist in correct structure</criterion>
         <criterion>No compiler warnings or clippy issues</criterion>
     </acceptance_criteria>
@@ -112,9 +105,9 @@
            - Run: docker build -t rust-basic-api .
            - Expect: Successful image creation
         
-        5. Docker Compose Test:
-           - Run: docker-compose up -d
-           - Verify: Both services running
+        5. Docker Test:
+           - Run: docker run -p 3000:3000 -e DATABASE_URL=your_database_url rust-basic-api
+           - Verify: Container runs successfully
            - Test: Health endpoint through Docker
         
         6. Logging Test:
