@@ -1,29 +1,30 @@
-FROM debian:bookworm-slim
+FROM rust:1.80-bullseye AS builder
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates libssl3 wget --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/* && apt-get clean
-
-# Create application user
-RUN useradd -r -u 1000 -m -d /app -s /bin/bash app
-
-# Set up application directory
 WORKDIR /app
 
-# Copy pre-built binary (expected to be built in CI)
-COPY rust-basic-api /app/rust-basic-api
-RUN chmod +x /app/rust-basic-api && chown -R app:app /app
+# Pre-fetch dependencies for faster incremental builds.
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN cargo fetch --locked
+RUN rm -rf src
 
-# Switch to app user
-USER app
+# Build the release binary.
+COPY src ./src
+RUN cargo build --release --locked
 
-# Expose port
-EXPOSE 8080
+FROM debian:bookworm-slim AS runtime
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libssl3 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Start the application
-CMD ["./rust-basic-api"]
+WORKDIR /app
+
+COPY --from=builder /app/target/release/rust-basic-api /usr/local/bin/rust-basic-api
+
+ENV RUST_LOG=info \
+    SERVER_PORT=3000
+
+EXPOSE 3000
+
+CMD ["rust-basic-api"]
