@@ -73,10 +73,7 @@ mod tests {
     #[serial]
     fn from_env_reads_values() {
         clear_env();
-        env::set_var(
-            "DATABASE_URL",
-            "postgres://postgres@localhost:5432/app_db",
-        );
+        env::set_var("DATABASE_URL", "postgres://postgres@localhost:5432/app_db");
         env::set_var("SERVER_PORT", "8080");
 
         let config = Config::from_env().expect("configuration should load");
@@ -146,10 +143,7 @@ mod tests {
     #[cfg(unix)]
     fn from_env_rejects_non_unicode_server_port() {
         clear_env();
-        env::set_var(
-            "DATABASE_URL",
-            "postgres://postgres@localhost:5432/app_db",
-        );
+        env::set_var("DATABASE_URL", "postgres://postgres@localhost:5432/app_db");
         set_non_unicode("SERVER_PORT");
 
         let error = Config::from_env().expect_err("Invalid unicode should error");
