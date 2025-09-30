@@ -19,3 +19,23 @@ impl Database {
         &self.pool
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::postgres::PgPoolOptions;
+
+    const TEST_DATABASE_URL: &str = "postgres://postgres@localhost:5432/test_db";
+
+    #[tokio::test]
+    async fn pool_accessor_provides_underlying_pg_pool() {
+        let pool = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_lazy(TEST_DATABASE_URL)
+            .expect("lazy pool should be created");
+
+        let database = Database::new(pool.clone());
+
+        assert_eq!(database.pool().size(), pool.size());
+    }
+}
