@@ -13,4 +13,12 @@ pub enum ConfigError {
         #[source]
         source: std::num::ParseIntError,
     },
+    #[error("failed to parse database max connections from value `{value}`")]
+    InvalidMaxConnections {
+        value: String,
+        #[source]
+        source: std::num::ParseIntError,
+    },
+    #[error("database max connections must be greater than zero (received {value})")]
+    InvalidMaxConnectionsZero { value: u32 },
 }

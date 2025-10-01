@@ -45,9 +45,9 @@ fn init_tracing() {
     }
 }
 
-fn create_database_pool(database_url: &str) -> Result<PgPool> {
+fn create_database_pool(database_url: &str, max_connections: u32) -> Result<PgPool> {
     PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(max_connections)
         .connect_lazy(database_url)
         .context("failed to initialize database pool")
 }
@@ -64,7 +64,7 @@ async fn run_with_config(
     config: Config,
     shutdown: impl std::future::Future<Output = ()> + Send + 'static,
 ) -> Result<()> {
-    let pool = create_database_pool(&config.database_url)?;
+    let pool = create_database_pool(&config.database_url, config.database_max_connections)?;
     let state = AppState::new(Database::new(pool));
     let app = build_app(state);
     let addr = bind_address(config.server_port);
@@ -116,13 +116,15 @@ mod tests {
 
     #[tokio::test]
     async fn create_database_pool_accepts_valid_url() {
-        let pool = create_database_pool(TEST_DATABASE_URL).expect("pool should be created lazily");
+        let pool =
+            create_database_pool(TEST_DATABASE_URL, 5).expect("pool should be created lazily");
         assert_eq!(pool.size(), 0_u32);
     }
 
     #[tokio::test]
     async fn build_app_registers_health_route() {
-        let pool = create_database_pool(TEST_DATABASE_URL).expect("pool should be created lazily");
+        let pool =
+            create_database_pool(TEST_DATABASE_URL, 5).expect("pool should be created lazily");
         let database = Database::new(pool);
         let state = AppState::new(database);
         let app = build_app(state);
@@ -145,7 +147,8 @@ mod tests {
 
     #[tokio::test]
     async fn create_database_pool_rejects_invalid_url() {
-        let error = create_database_pool("not-a-valid-url").expect_err("pool creation should fail");
+        let error =
+            create_database_pool("not-a-valid-url", 5).expect_err("pool creation should fail");
         assert!(error
             .to_string()
             .contains("failed to initialize database pool"));
@@ -160,6 +163,7 @@ mod tests {
         let config = Config {
             database_url: TEST_DATABASE_URL.to_string(),
             server_port: port,
+            database_max_connections: 5,
         };
 
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -200,6 +204,7 @@ mod tests {
 
         env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::set_var("SERVER_PORT", port.to_string());
+        env::set_var("DATABASE_MAX_CONNECTIONS", "5");
 
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
@@ -230,6 +235,7 @@ mod tests {
 
         env::remove_var("DATABASE_URL");
         env::remove_var("SERVER_PORT");
+        env::remove_var("DATABASE_MAX_CONNECTIONS");
     }
 
     #[test]
@@ -241,10 +247,12 @@ mod tests {
 
         env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::set_var("SERVER_PORT", port.to_string());
+        env::set_var("DATABASE_MAX_CONNECTIONS", "5");
 
         main().expect("main should exit cleanly");
 
         env::remove_var("DATABASE_URL");
         env::remove_var("SERVER_PORT");
+        env::remove_var("DATABASE_MAX_CONNECTIONS");
     }
 }

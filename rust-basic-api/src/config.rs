@@ -7,6 +7,7 @@ use std::env;
 pub struct Config {
     pub database_url: String,
     pub server_port: u16,
+    pub database_max_connections: u32,
 }
 
 impl Config {
@@ -40,9 +41,34 @@ impl Config {
             }
         };
 
+        let database_max_connections = match env::var("DATABASE_MAX_CONNECTIONS") {
+            Ok(value) => {
+                let parsed =
+                    value
+                        .parse::<u32>()
+                        .map_err(|source| ConfigError::InvalidMaxConnections {
+                            value: value.clone(),
+                            source,
+                        })?;
+
+                if parsed == 0 {
+                    return Err(ConfigError::InvalidMaxConnectionsZero { value: parsed });
+                }
+
+                parsed
+            }
+            Err(env::VarError::NotPresent) => 5,
+            Err(env::VarError::NotUnicode(_)) => {
+                return Err(ConfigError::InvalidUnicode {
+                    name: "DATABASE_MAX_CONNECTIONS",
+                })
+            }
+        };
+
         Ok(Self {
             database_url,
             server_port,
+            database_max_connections,
         })
     }
 }
@@ -60,6 +86,7 @@ mod tests {
     fn clear_env() {
         env::remove_var("DATABASE_URL");
         env::remove_var("SERVER_PORT");
+        env::remove_var("DATABASE_MAX_CONNECTIONS");
     }
 
     #[cfg(unix)]
@@ -75,6 +102,7 @@ mod tests {
         clear_env();
         env::set_var("DATABASE_URL", "postgres://postgres@localhost:5432/app_db");
         env::set_var("SERVER_PORT", "8080");
+        env::set_var("DATABASE_MAX_CONNECTIONS", "12");
 
         let config = Config::from_env().expect("configuration should load");
 
@@ -83,6 +111,7 @@ mod tests {
             "postgres://postgres@localhost:5432/app_db"
         );
         assert_eq!(config.server_port, 8080);
+        assert_eq!(config.database_max_connections, 12);
     }
 
     #[test]
@@ -120,6 +149,34 @@ mod tests {
         let config = Config::from_env().expect("default port should be provided");
 
         assert_eq!(config.server_port, 3000);
+        assert_eq!(config.database_max_connections, 5);
+    }
+
+    #[test]
+    #[serial]
+    fn from_env_rejects_invalid_max_connections() {
+        clear_env();
+        env::set_var("DATABASE_URL", "postgres://postgres@localhost:5432/app_db");
+        env::set_var("DATABASE_MAX_CONNECTIONS", "not-a-number");
+
+        let error = Config::from_env().expect_err("Invalid max connections should error");
+
+        assert!(matches!(error, ConfigError::InvalidMaxConnections { .. }));
+    }
+
+    #[test]
+    #[serial]
+    fn from_env_rejects_zero_max_connections() {
+        clear_env();
+        env::set_var("DATABASE_URL", "postgres://postgres@localhost:5432/app_db");
+        env::set_var("DATABASE_MAX_CONNECTIONS", "0");
+
+        let error = Config::from_env().expect_err("Zero max connections should error");
+
+        assert!(matches!(
+            error,
+            ConfigError::InvalidMaxConnectionsZero { value } if value == 0
+        ));
     }
 
     #[test]
@@ -151,6 +208,22 @@ mod tests {
         assert!(matches!(
             error,
             ConfigError::InvalidUnicode { name } if name == "SERVER_PORT"
+        ));
+    }
+
+    #[test]
+    #[serial]
+    #[cfg(unix)]
+    fn from_env_rejects_non_unicode_max_connections() {
+        clear_env();
+        env::set_var("DATABASE_URL", "postgres://postgres@localhost:5432/app_db");
+        set_non_unicode("DATABASE_MAX_CONNECTIONS");
+
+        let error = Config::from_env().expect_err("Invalid unicode should error");
+
+        assert!(matches!(
+            error,
+            ConfigError::InvalidUnicode { name } if name == "DATABASE_MAX_CONNECTIONS"
         ));
     }
 }
