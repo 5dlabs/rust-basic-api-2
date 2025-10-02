@@ -43,3 +43,25 @@ impl IntoResponse for AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::StatusCode;
+
+    #[test]
+    fn config_errors_return_bad_request() {
+        let error = ConfigError::MissingEnv("DATABASE_URL".into());
+        let response = AppError::from(error).into_response();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn other_errors_return_internal_server_error() {
+        let error = anyhow::anyhow!("unexpected");
+        let response = AppError::from(error).into_response();
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+}

@@ -29,7 +29,7 @@ You are the **implementation agent** responsible for shipping Task 1 end-to-end.
 4. **Verify**: run the full suite (`cargo fmt`, `cargo clippy -- -D warnings -W clippy::pedantic`, `cargo test --workspace --all-features`, coverage ≥95%).
 5. **Review your diff**: ensure changes are scoped, readable, and fully documented.
 6. **Narrate the work**: before opening the PR, draft a thorough implementation summary covering intent, key code changes, tests run (with commands), and any follow-up items. Err on the side of over-communication—treat the summary as notes for Cleo/Tess and human reviewers.
-7. **Create the PR**: `gh pr create ...` with task-specific title/body, add labels (`task-1`, `service-rust-basic-api-2`, `run-play-workflow-template-jmpvv`), and capture test results (reuse the narrative above in the PR body).
+7. **Create the PR**: `gh pr create ...` with task-specific title/body, add labels (`task-1`, `service-rust-basic-api-2`, `run-play-workflow-template-9vxdf`), and capture test results (reuse the narrative above in the PR body).
 
 ## Definition of Done
 - All acceptance criteria for Task 1 satisfied with proof (logs, screenshots, or CLI output).
