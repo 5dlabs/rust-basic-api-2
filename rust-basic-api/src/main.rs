@@ -34,7 +34,13 @@ fn init_tracing() {
 }
 
 fn build_state(config: &Config) -> AppResult<SharedState> {
-    let pool = repository::create_pool(&config.database_url)?;
+    let pool = repository::create_pool(
+        &config.database_url,
+        config.database_max_connections,
+        config.database_min_connections,
+        config.database_acquire_timeout_secs,
+        config.database_idle_timeout_secs,
+    )?;
     Ok(Arc::new(AppState::new(pool)))
 }
 
@@ -118,6 +124,10 @@ mod tests {
     async fn build_state_creates_shared_state() {
         let config = Config {
             database_url: "postgresql://localhost:5432/example_db".into(),
+            database_max_connections: repository::DEFAULT_MAX_CONNECTIONS,
+            database_min_connections: repository::DEFAULT_MIN_CONNECTIONS,
+            database_acquire_timeout_secs: repository::DEFAULT_ACQUIRE_TIMEOUT_SECS,
+            database_idle_timeout_secs: repository::DEFAULT_IDLE_TIMEOUT_SECS,
             server_port: 3000,
         };
 
@@ -131,6 +141,10 @@ mod tests {
         init_tracing();
         let config = Config {
             database_url: "postgresql://localhost:5432/example_db".into(),
+            database_max_connections: repository::DEFAULT_MAX_CONNECTIONS,
+            database_min_connections: repository::DEFAULT_MIN_CONNECTIONS,
+            database_acquire_timeout_secs: repository::DEFAULT_ACQUIRE_TIMEOUT_SECS,
+            database_idle_timeout_secs: repository::DEFAULT_IDLE_TIMEOUT_SECS,
             server_port: 0,
         };
 
