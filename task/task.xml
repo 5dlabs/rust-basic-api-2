@@ -1,0 +1,127 @@
+<prompt>
+    <role>You are a senior Rust developer specializing in backend API development with Axum framework.</role>
+    <task>
+        <id>1</id>
+        <title>Project Setup and Configuration</title>
+        <description>Initialize the Rust project with Cargo, set up the project structure, and configure dependencies for building a production-ready REST API with Axum framework.</description>
+        <priority>high</priority>
+        <status>pending</status>
+        <dependencies>None</dependencies>
+    </task>
+    <technical_specifications>
+        <spec>Create new Rust binary project named rust-basic-api using Cargo</spec>
+        <spec>Configure Cargo.toml with axum, tokio, serde, sqlx, tracing, and error handling dependencies</spec>
+        <spec>Implement modular project structure with separate modules for config, errors, models, routes, and repository</spec>
+        <spec>Create Config struct with from_env() method for environment-based configuration</spec>
+        <spec>Implement main.rs with async Tokio runtime, tracing initialization, and Axum server setup</spec>
+        <spec>Add health check endpoint at /health returning "OK"</spec>
+        <spec>Create multi-stage Dockerfile for optimized container builds</spec>
+        <spec>Create .env.example template with DATABASE_URL, SERVER_PORT, and RUST_LOG variables</spec>
+    </technical_specifications>
+    <implementation_details>
+        1. Project Initialization:
+           - Run: cargo new rust-basic-api --bin
+           - Navigate to project directory
+        
+        2. Dependencies Configuration in Cargo.toml:
+           [dependencies]
+           axum = "0.6.0"
+           tokio = { version = "1", features = ["full"] }
+           serde = { version = "1", features = ["derive"] }
+           serde_json = "1"
+           sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "json"] }
+           tracing = "0.1"
+           tracing-subscriber = "0.3"
+           dotenv = "0.15"
+           anyhow = "1.0"
+           thiserror = "1.0"
+        
+        3. Project Structure:
+           src/
+           ├── main.rs           # Application entry point
+           ├── config.rs         # Configuration management
+           ├── error.rs          # Error types and handling
+           ├── models/           # Data models
+           │   └── mod.rs
+           ├── routes/           # API route handlers
+           │   └── mod.rs
+           └── repository/       # Database interaction layer
+               └── mod.rs
+        
+        4. Configuration Module (src/config.rs):
+           - Define Config struct with database_url and server_port fields
+           - Implement from_env() method using dotenv
+           - Handle environment variable errors properly
+           - Provide defaults for optional values like SERVER_PORT
+        
+        5. Main Application (src/main.rs):
+           - Declare all submodules
+           - Initialize tracing subscriber with EnvFilter
+           - Load configuration from environment
+           - Create Axum Router with health check route
+           - Bind server to configured address
+           - Implement async health_check handler
+        
+        6. Docker Configuration:
+           Dockerfile:
+           - Use rust:1.70 as builder stage
+           - Copy source and build release binary
+           - Use debian:bullseye-slim for runtime
+           - Copy built binary and expose port 3000
+           
+        
+        7. Environment Template (.env.example):
+           DATABASE_URL=postgresql://your_connection_string
+           SERVER_PORT=3000
+           RUST_LOG=info
+    </implementation_details>
+    <acceptance_criteria>
+        <criterion>Project builds successfully with cargo build</criterion>
+        <criterion>Server starts and binds to configured port</criterion>
+        <criterion>Health endpoint at /health returns "OK" response</criterion>
+        <criterion>Environment variables are loaded correctly from .env file</criterion>
+        <criterion>Logging outputs to console with configured level</criterion>
+        <criterion>Docker image builds without errors</criterion>
+        <criterion>All module files exist in correct structure</criterion>
+        <criterion>No compiler warnings or clippy issues</criterion>
+    </acceptance_criteria>
+    <test_strategy>
+        1. Build Verification:
+           - Run: cargo build
+           - Expect: Successful compilation without errors
+        
+        2. Local Server Test:
+           - Run: cargo run
+           - Verify: Server starts on port 3000
+           - Test: curl http://localhost:3000/health
+           - Expect: "OK" response
+        
+        3. Environment Variable Test:
+           - Set SERVER_PORT=8080
+           - Run server
+           - Verify: Server binds to port 8080
+        
+        4. Docker Build Test:
+           - Run: docker build -t rust-basic-api .
+           - Expect: Successful image creation
+        
+        5. Docker Test:
+           - Run: docker run -p 3000:3000 -e DATABASE_URL=your_database_url rust-basic-api
+           - Verify: Container runs successfully
+           - Test: Health endpoint through Docker
+        
+        6. Logging Test:
+           - Set RUST_LOG=debug
+           - Run server
+           - Verify: Debug level logs appear
+    </test_strategy>
+    <instructions>
+        Think step-by-step about the implementation approach. Start by creating the project structure,
+        then implement configuration management, followed by the main server setup. Ensure all error
+        handling uses proper Result types and the ? operator for propagation. Follow Rust naming
+        conventions (snake_case) and idioms. Include comprehensive error messages for debugging.
+        Test each component incrementally before moving to containerization. Provide complete,
+        production-ready code that follows best practices. Include necessary imports, error handling,
+        and documentation comments where appropriate.
+    </instructions>
+</prompt>

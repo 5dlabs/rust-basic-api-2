@@ -1,29 +1,27 @@
-FROM debian:bookworm-slim
+FROM rust:1.80 as builder
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates libssl3 wget --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/* && apt-get clean
-
-# Create application user
-RUN useradd -r -u 1000 -m -d /app -s /bin/bash app
-
-# Set up application directory
 WORKDIR /app
 
-# Copy pre-built binary (expected to be built in CI)
-COPY rust-basic-api /app/rust-basic-api
-RUN chmod +x /app/rust-basic-api && chown -R app:app /app
+# Leverage build caching by copying manifest first
+COPY Cargo.toml ./
+COPY src ./src
 
-# Switch to app user
-USER app
+RUN cargo build --release
 
-# Expose port
-EXPOSE 8080
+FROM debian:bookworm-slim AS runtime
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Start the application
-CMD ["./rust-basic-api"]
+WORKDIR /app
+
+COPY --from=builder /app/target/release/rust-basic-api /usr/local/bin/rust-basic-api
+
+ENV RUST_LOG=info
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+
+CMD ["rust-basic-api"]
