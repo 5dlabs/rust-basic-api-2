@@ -49,17 +49,25 @@ fn build_state(config: &Config) -> AppResult<SharedState> {
 
 async fn shutdown_signal() {
     let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to install CTRL+C handler");
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            tracing::error!(?error, "Failed to listen for CTRL+C signal");
+            std::future::pending::<()>().await;
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
         use tokio::signal::unix::{signal, SignalKind};
 
-        let mut term = signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
-        term.recv().await;
+        match signal(SignalKind::terminate()) {
+            Ok(mut term) => {
+                term.recv().await;
+            }
+            Err(error) => {
+                tracing::error!(?error, "Failed to install SIGTERM handler");
+                std::future::pending::<()>().await;
+            }
+        }
     };
 
     #[cfg(not(unix))]

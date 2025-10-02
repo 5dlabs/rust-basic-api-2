@@ -10,7 +10,7 @@ pub fn create_router(state: SharedState) -> Router {
 
 async fn health_check(State(state): State<SharedState>) -> &'static str {
     if state.db_pool.is_closed() {
-        tracing::warn!("database" = "closed", "Connection pool is closed");
+        tracing::warn!(database_state = "closed", "Connection pool is closed");
     }
 
     "OK"
