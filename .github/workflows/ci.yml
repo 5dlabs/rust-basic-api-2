@@ -59,6 +59,6 @@ jobs:
           workspaces: rust-basic-api -> target
           shared-key: rust-cache-ci
       - name: Install cargo-llvm-cov
-        run: cargo install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --force
       - name: Test coverage (≥95% required)
         run: cargo llvm-cov --all-features --fail-under-lines 95
