@@ -3,7 +3,7 @@ use crate::repository::{
     DEFAULT_MIN_CONNECTIONS,
 };
 use dotenv::dotenv;
-use std::{env, num::ParseIntError};
+use std::{env, io::ErrorKind, num::ParseIntError};
 use thiserror::Error;
 
 /// Application runtime configuration loaded from environment variables.
@@ -34,7 +34,14 @@ pub enum ConfigError {
 impl Config {
     /// Load configuration values from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
-        dotenv().ok();
+        if let Err(error) = dotenv() {
+            if !matches!(
+                error,
+                dotenv::Error::Io(ref io_error) if io_error.kind() == ErrorKind::NotFound
+            ) {
+                tracing::debug!(?error, "Failed to load .env file");
+            }
+        }
 
         let database_url = match env::var("DATABASE_URL") {
             Ok(value) => value,
