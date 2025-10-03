@@ -52,7 +52,7 @@ async fn run_application(
     let router = routes::create_router(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
-    tracing::info!(listening_on = %addr, "Starting HTTP server");
+    tracing::info!(%addr, "Listening on {}", addr);
 
     axum::Server::bind(&addr)
         .serve(router.into_make_service())
