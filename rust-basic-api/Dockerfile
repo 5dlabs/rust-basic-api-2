@@ -1,5 +1,4 @@
-ARG RUST_VERSION=1.89
-FROM rust:${RUST_VERSION} AS builder
+FROM rust:1.89 AS builder
 
 WORKDIR /app
 
@@ -9,7 +8,7 @@ COPY src ./src
 
 RUN cargo build --release --locked
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:bullseye-slim AS runtime
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \

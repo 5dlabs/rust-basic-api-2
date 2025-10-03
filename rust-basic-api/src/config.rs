@@ -1,7 +1,3 @@
-use crate::repository::{
-    DEFAULT_ACQUIRE_TIMEOUT_SECS, DEFAULT_IDLE_TIMEOUT_SECS, DEFAULT_MAX_CONNECTIONS,
-    DEFAULT_MIN_CONNECTIONS,
-};
 use dotenv::dotenv;
 use std::{env, io::ErrorKind, num::ParseIntError};
 use thiserror::Error;
@@ -10,10 +6,6 @@ use thiserror::Error;
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
-    pub database_max_connections: u32,
-    pub database_min_connections: u32,
-    pub database_acquire_timeout_secs: u64,
-    pub database_idle_timeout_secs: u64,
     pub server_port: u16,
 }
 
@@ -53,25 +45,10 @@ impl Config {
             }
         };
 
-        let database_max_connections =
-            parse_env_or_default("DATABASE_MAX_CONNECTIONS", DEFAULT_MAX_CONNECTIONS)?;
-        let database_min_connections =
-            parse_env_or_default("DATABASE_MIN_CONNECTIONS", DEFAULT_MIN_CONNECTIONS)?;
-        let database_acquire_timeout_secs = parse_env_or_default(
-            "DATABASE_ACQUIRE_TIMEOUT_SECS",
-            DEFAULT_ACQUIRE_TIMEOUT_SECS,
-        )?;
-        let database_idle_timeout_secs =
-            parse_env_or_default("DATABASE_IDLE_TIMEOUT_SECS", DEFAULT_IDLE_TIMEOUT_SECS)?;
-
         let server_port = parse_env_or_default("SERVER_PORT", 3000u16)?;
 
         Ok(Self {
             database_url,
-            database_max_connections,
-            database_min_connections,
-            database_acquire_timeout_secs,
-            database_idle_timeout_secs,
             server_port,
         })
     }
@@ -100,10 +77,6 @@ mod tests {
     fn clear_env() {
         env::remove_var("DATABASE_URL");
         env::remove_var("SERVER_PORT");
-        env::remove_var("DATABASE_MAX_CONNECTIONS");
-        env::remove_var("DATABASE_MIN_CONNECTIONS");
-        env::remove_var("DATABASE_ACQUIRE_TIMEOUT_SECS");
-        env::remove_var("DATABASE_IDLE_TIMEOUT_SECS");
     }
 
     #[test]
@@ -120,13 +93,6 @@ mod tests {
             "postgresql://localhost:5432/example_db"
         );
         assert_eq!(config.server_port, 3000);
-        assert_eq!(config.database_max_connections, DEFAULT_MAX_CONNECTIONS);
-        assert_eq!(config.database_min_connections, DEFAULT_MIN_CONNECTIONS);
-        assert_eq!(
-            config.database_acquire_timeout_secs,
-            DEFAULT_ACQUIRE_TIMEOUT_SECS
-        );
-        assert_eq!(config.database_idle_timeout_secs, DEFAULT_IDLE_TIMEOUT_SECS);
 
         clear_env();
     }
@@ -160,42 +126,21 @@ mod tests {
     }
 
     #[test]
-    fn from_env_overrides_database_pool_settings() {
+    fn from_env_fails_when_port_invalid() {
         let _guard = ENV_LOCK.lock().expect("mutex poisoned");
 
         clear_env();
         env::set_var("DATABASE_URL", "postgresql://localhost:5432/example_db");
-        env::set_var("DATABASE_MAX_CONNECTIONS", "10");
-        env::set_var("DATABASE_MIN_CONNECTIONS", "2");
-        env::set_var("DATABASE_ACQUIRE_TIMEOUT_SECS", "15");
-        env::set_var("DATABASE_IDLE_TIMEOUT_SECS", "120");
+        env::set_var("SERVER_PORT", "not-a-number");
 
-        let config = Config::from_env().expect("configuration should load");
-
-        assert_eq!(config.database_max_connections, 10);
-        assert_eq!(config.database_min_connections, 2);
-        assert_eq!(config.database_acquire_timeout_secs, 15);
-        assert_eq!(config.database_idle_timeout_secs, 120);
-
-        clear_env();
-    }
-
-    #[test]
-    fn from_env_fails_when_pool_setting_invalid() {
-        let _guard = ENV_LOCK.lock().expect("mutex poisoned");
-
-        clear_env();
-        env::set_var("DATABASE_URL", "postgresql://localhost:5432/example_db");
-        env::set_var("DATABASE_MAX_CONNECTIONS", "not-a-number");
-
-        let error = Config::from_env().expect_err("invalid setting must error");
+        let error = Config::from_env().expect_err("invalid port must error");
 
         assert!(matches!(
             error,
             ConfigError::InvalidNumber {
                 name,
                 ..
-            } if name == "DATABASE_MAX_CONNECTIONS"
+            } if name == "SERVER_PORT"
         ));
 
         clear_env();

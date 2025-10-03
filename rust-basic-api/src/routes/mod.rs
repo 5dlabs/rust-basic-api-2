@@ -29,14 +29,8 @@ mod tests {
     use tower::ServiceExt;
 
     fn example_state() -> SharedState {
-        let pool = repository::create_pool(
-            "postgresql://localhost:5432/example_db",
-            repository::DEFAULT_MAX_CONNECTIONS,
-            repository::DEFAULT_MIN_CONNECTIONS,
-            repository::DEFAULT_ACQUIRE_TIMEOUT_SECS,
-            repository::DEFAULT_IDLE_TIMEOUT_SECS,
-        )
-        .expect("pool should be created lazily");
+        let pool = repository::create_pool("postgresql://localhost:5432/example_db")
+            .expect("pool should be created lazily");
         Arc::new(AppState::new(pool))
     }
 
