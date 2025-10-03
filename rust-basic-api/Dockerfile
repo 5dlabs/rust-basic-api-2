@@ -4,7 +4,7 @@ FROM rust:${RUST_VERSION} AS builder
 WORKDIR /app
 
 # Leverage build caching by copying manifest first
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock build.rs ./
 COPY src ./src
 
 RUN cargo build --release --locked
