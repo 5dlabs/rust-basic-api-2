@@ -94,9 +94,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{env, sync::Mutex};
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    use crate::ENV_LOCK;
+    use std::env;
 
     fn clear_env() {
         env::remove_var("DATABASE_URL");

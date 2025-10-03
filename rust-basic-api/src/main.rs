@@ -6,6 +6,8 @@ mod routes;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
+#[cfg(test)]
+use std::sync::Mutex;
 
 use anyhow::Error as AnyhowError;
 use error::{AppError, AppResult};
@@ -13,6 +15,9 @@ use models::{AppState, SharedState};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use crate::config::Config;
+
+#[cfg(test)]
+pub(crate) static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
@@ -119,9 +124,8 @@ async fn terminate_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{env, sync::Mutex};
-
-    static MAIN_ENV_LOCK: Mutex<()> = Mutex::new(());
+    use crate::ENV_LOCK;
+    use std::env;
 
     #[tokio::test]
     async fn build_state_creates_shared_state() {
@@ -184,7 +188,7 @@ mod tests {
 
     #[test]
     fn main_runs_with_environment_configuration() {
-        let _guard = MAIN_ENV_LOCK.lock().expect("mutex poisoned");
+        let _guard = ENV_LOCK.lock().expect("mutex poisoned");
 
         env::set_var("DATABASE_URL", "postgresql://localhost:5432/example_db");
         env::set_var("SERVER_PORT", "0");
