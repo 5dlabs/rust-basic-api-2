@@ -50,7 +50,7 @@ async fn run_application(
     let state = build_state(&config)?;
     let router = routes::create_router(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
+    let addr = SocketAddr::new(config.server_host, config.server_port);
     tracing::info!(%addr, "Listening on {}", addr);
 
     axum::Server::bind(&addr)
@@ -120,11 +120,13 @@ mod tests {
     use super::*;
     use crate::ENV_LOCK;
     use std::env;
+    use std::net::IpAddr;
 
     #[tokio::test]
     async fn build_state_creates_shared_state() {
         let config = Config {
             database_url: "postgresql://localhost:5432/example_db".into(),
+            server_host: IpAddr::from([0, 0, 0, 0]),
             server_port: 3000,
         };
 
@@ -138,6 +140,7 @@ mod tests {
         init_tracing();
         let config = Config {
             database_url: "postgresql://localhost:5432/example_db".into(),
+            server_host: IpAddr::from([0, 0, 0, 0]),
             server_port: 0,
         };
 
@@ -177,10 +180,12 @@ mod tests {
         let _guard = ENV_LOCK.lock().expect("mutex poisoned");
 
         env::set_var("DATABASE_URL", "postgresql://localhost:5432/example_db");
+        env::set_var("SERVER_HOST", "0.0.0.0");
         env::set_var("SERVER_PORT", "0");
 
         super::main().expect("main should succeed");
 
+        env::remove_var("SERVER_HOST");
         env::remove_var("SERVER_PORT");
         env::remove_var("DATABASE_URL");
     }

@@ -6,6 +6,7 @@ services:
     image: rust-basic-api:latest
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - SERVER_HOST=${SERVER_HOST:-0.0.0.0}
       - SERVER_PORT=${SERVER_PORT:-3000}
       - RUST_LOG=${RUST_LOG:-info}
     ports:

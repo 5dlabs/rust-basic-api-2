@@ -1,11 +1,17 @@
 use dotenv::dotenv;
-use std::{env, io::ErrorKind, num::ParseIntError};
+use std::{
+    env,
+    io::ErrorKind,
+    net::{AddrParseError, IpAddr},
+    num::ParseIntError,
+};
 use thiserror::Error;
 
 /// Application runtime configuration loaded from environment variables.
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
+    pub server_host: IpAddr,
     pub server_port: u16,
 }
 
@@ -18,6 +24,12 @@ pub enum ConfigError {
         name: String,
         #[source]
         source: ParseIntError,
+    },
+    #[error("failed to parse `{name}`: {source}")]
+    InvalidAddress {
+        name: String,
+        #[source]
+        source: AddrParseError,
     },
     #[error("environment variable `{0}` contained invalid unicode")]
     InvalidUnicode(String),
@@ -45,10 +57,12 @@ impl Config {
             }
         };
 
+        let server_host = parse_host_or_default("SERVER_HOST", "0.0.0.0")?;
         let server_port = parse_env_or_default("SERVER_PORT", 3000u16)?;
 
         Ok(Self {
             database_url,
+            server_host,
             server_port,
         })
     }
@@ -68,14 +82,34 @@ where
     }
 }
 
+fn parse_host_or_default(name: &str, default: &str) -> Result<IpAddr, ConfigError> {
+    match env::var(name) {
+        Ok(value) => value.parse().map_err(|source| ConfigError::InvalidAddress {
+            name: name.into(),
+            source,
+        }),
+        Err(env::VarError::NotPresent) => {
+            default
+                .parse()
+                .map_err(|source| ConfigError::InvalidAddress {
+                    name: name.into(),
+                    source,
+                })
+        }
+        Err(env::VarError::NotUnicode(_)) => Err(ConfigError::InvalidUnicode(name.into())),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ENV_LOCK;
     use std::env;
+    use std::net::IpAddr;
 
     fn clear_env() {
         env::remove_var("DATABASE_URL");
+        env::remove_var("SERVER_HOST");
         env::remove_var("SERVER_PORT");
     }
 
@@ -92,6 +126,7 @@ mod tests {
             config.database_url,
             "postgresql://localhost:5432/example_db"
         );
+        assert_eq!(config.server_host, IpAddr::from([0, 0, 0, 0]));
         assert_eq!(config.server_port, 3000);
 
         clear_env();
@@ -103,10 +138,12 @@ mod tests {
 
         clear_env();
         env::set_var("DATABASE_URL", "postgresql://localhost:5432/example_db");
+        env::set_var("SERVER_HOST", "127.0.0.1");
         env::set_var("SERVER_PORT", "8080");
 
         let config = Config::from_env().expect("configuration should load");
 
+        assert_eq!(config.server_host, IpAddr::from([127, 0, 0, 1]));
         assert_eq!(config.server_port, 8080);
 
         clear_env();
@@ -141,6 +178,24 @@ mod tests {
                 name,
                 ..
             } if name == "SERVER_PORT"
+        ));
+
+        clear_env();
+    }
+
+    #[test]
+    fn from_env_fails_when_host_invalid() {
+        let _guard = ENV_LOCK.lock().expect("mutex poisoned");
+
+        clear_env();
+        env::set_var("DATABASE_URL", "postgresql://localhost:5432/example_db");
+        env::set_var("SERVER_HOST", "999.999.999.999");
+
+        let error = Config::from_env().expect_err("invalid host must error");
+
+        assert!(matches!(
+            error,
+            ConfigError::InvalidAddress { name, .. } if name == "SERVER_HOST"
         ));
 
         clear_env();
