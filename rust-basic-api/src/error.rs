@@ -2,9 +2,9 @@
 
 use std::env;
 
-use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use thiserror::Error;
 
 /// Convenient result alias that utilises [`AppError`].

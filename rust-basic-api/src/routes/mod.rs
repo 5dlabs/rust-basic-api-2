@@ -1,9 +1,9 @@
 //! HTTP route handlers and router construction.
 
-use axum::Extension;
-use axum::Router;
 use axum::http::StatusCode;
 use axum::routing::get;
+use axum::Extension;
+use axum::Router;
 
 use crate::models::AppState;
 
