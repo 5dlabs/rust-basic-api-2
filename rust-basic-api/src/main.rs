@@ -119,6 +119,9 @@ async fn terminate_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{env, sync::Mutex};
+
+    static MAIN_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[tokio::test]
     async fn build_state_creates_shared_state() {
@@ -177,5 +180,18 @@ mod tests {
         tokio::time::timeout(std::time::Duration::from_millis(50), shutdown_signal())
             .await
             .expect("shutdown signal should resolve under test");
+    }
+
+    #[test]
+    fn main_runs_with_environment_configuration() {
+        let _guard = MAIN_ENV_LOCK.lock().expect("mutex poisoned");
+
+        env::set_var("DATABASE_URL", "postgresql://localhost:5432/example_db");
+        env::set_var("SERVER_PORT", "0");
+
+        super::main().expect("main should succeed");
+
+        env::remove_var("SERVER_PORT");
+        env::remove_var("DATABASE_URL");
     }
 }
