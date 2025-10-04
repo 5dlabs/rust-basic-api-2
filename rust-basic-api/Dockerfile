@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM rust:1.80 AS builder
+FROM rust:1.83 AS builder
 WORKDIR /app
 
 # Create a dummy project to leverage Docker layer caching for dependencies
