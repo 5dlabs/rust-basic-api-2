@@ -9,6 +9,6 @@ environment:
   RUST_LOG: "debug"
 
   # Database Configuration (Kubernetes services in databases namespace)
-  # Connectivity Status: Redis ✅, PostgreSQL ✅, QuestDB ✅ (ILP HTTP & PostgreSQL wire)
-  DATABASE_URL: "postgresql://postgres:BSLqLzbtuR4IPUFwXGZ5ne1Lxb74OeVVGhASxCFzk817z6wIJRWIGKqLm2uaDX3w@test-db.databases.svc.cluster.local:5432/postgres"
-
+  # Connectivity: Redis ✅, PostgreSQL ✅, QuestDB ✅ (ILP HTTP & PostgreSQL wire)
+  DATABASE_URL: >-
+    postgresql://postgres:BSLqLzbtuR4IPUFwXGZ5ne1Lxb74OeVVGhASxCFzk817z6wIJRWIGKqLm2uaDX3w@test-db.databases.svc.cluster.local:5432/postgres
