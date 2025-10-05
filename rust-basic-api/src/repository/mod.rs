@@ -36,7 +36,7 @@ mod tests {
 
         for url in urls {
             let result = create_pool(url);
-            assert!(result.is_ok(), "Failed to create pool for URL: {}", url);
+            assert!(result.is_ok(), "Failed to create pool for URL: {url}");
         }
     }
 

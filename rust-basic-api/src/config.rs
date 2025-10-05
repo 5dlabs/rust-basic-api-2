@@ -161,7 +161,7 @@ mod tests {
         );
 
         let config = Config::from_env().unwrap();
-        let debug_str = format!("{:?}", config);
+        let debug_str = format!("{config:?}");
 
         assert!(debug_str.contains("Config"));
         assert!(debug_str.contains("database_url"));

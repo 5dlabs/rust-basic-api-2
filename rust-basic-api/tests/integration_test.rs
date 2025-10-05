@@ -75,7 +75,7 @@ fn test_database_url_format() {
     // Test that database URLs are valid format
     let test_url = "postgresql://user:password@localhost:5432/database";
     assert!(test_url.starts_with("postgresql://"));
-    assert!(test_url.contains("@"));
+    assert!(test_url.contains('@'));
     assert!(test_url.contains(":5432"));
 }
 

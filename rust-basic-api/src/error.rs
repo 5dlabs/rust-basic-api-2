@@ -120,7 +120,9 @@ mod tests {
     fn test_app_result_type() {
         let ok_result: AppResult<i32> = Ok(42);
         assert!(ok_result.is_ok());
-        assert_eq!(ok_result.unwrap(), 42);
+        if let Ok(value) = ok_result {
+            assert_eq!(value, 42);
+        }
 
         let err_result: AppResult<i32> = Err(AppError::Configuration("test".to_string()));
         assert!(err_result.is_err());
