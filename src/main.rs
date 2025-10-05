@@ -1,8 +1,11 @@
-mod config;
-mod error;
-mod models;
-mod repository;
-mod routes;
+pub mod config;
+pub mod error;
+pub mod models;
+pub mod repository;
+pub mod routes;
+
+#[cfg(test)]
+mod error_tests;
 
 use std::net::SocketAddr;
 
