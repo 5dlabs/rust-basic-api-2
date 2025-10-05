@@ -125,4 +125,30 @@ mod tests {
 
         reset_env();
     }
+
+    #[cfg(unix)]
+    #[test]
+    #[serial]
+    fn server_port_with_non_utf8_value_returns_error() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        reset_env();
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
+
+        let invalid_bytes = OsStr::from_bytes(&[0x80]);
+        env::set_var("SERVER_PORT", invalid_bytes);
+
+        let error = Config::from_env().expect_err("invalid unicode should fail");
+
+        assert!(matches!(
+            error,
+            ConfigError::EnvVar {
+                var: "SERVER_PORT",
+                ..
+            }
+        ));
+
+        reset_env();
+    }
 }

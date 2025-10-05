@@ -1,6 +1,34 @@
 // Integration tests for the entire application
 use serial_test::serial;
-use std::env;
+use sqlx::PgPool;
+use std::{env, sync::Once};
+
+fn load_test_env() {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let _ = dotenv::from_filename(".env.test");
+    });
+}
+
+fn test_database_url() -> String {
+    load_test_env();
+    env::var("TEST_DATABASE_URL")
+        .or_else(|_| env::var("DATABASE_URL"))
+        .expect("DATABASE_URL or TEST_DATABASE_URL must be set for tests")
+}
+
+async fn create_test_pool() -> PgPool {
+    let pool = rust_basic_api::repository::create_pool(&test_database_url())
+        .await
+        .expect("failed to create database pool");
+
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("failed to run migrations");
+
+    pool
+}
 
 mod config_integration {
     use super::*;
@@ -171,27 +199,25 @@ mod config_integration {
 }
 
 mod repository_integration {
+    use super::create_test_pool;
     use rust_basic_api::repository::create_pool;
 
     #[tokio::test]
-    async fn create_pool_accepts_valid_connection_string() {
-        let pool = create_pool("postgresql://postgres@localhost:5432/test");
-        assert!(pool.is_ok());
+    async fn create_pool_establishes_active_pool() {
+        let pool = create_test_pool().await;
+        assert!(!pool.is_closed());
     }
 
     #[tokio::test]
     async fn create_pool_validates_connection_string_format() {
-        let result = create_pool("invalid://connection/string");
-        // Should either succeed (lazy connection) or fail with clear error
-        // sqlx validates URL format
-        assert!(result.is_ok() || result.is_err());
+        let result = create_pool("invalid://connection/string").await;
+        assert!(result.is_err());
     }
 
     #[tokio::test]
-    async fn create_pool_creates_lazy_connection() {
-        // Lazy connections don't actually connect until first query
-        let pool = create_pool("postgresql://nonexistent@localhost:5432/fake").unwrap();
-        assert!(!pool.is_closed());
+    async fn create_pool_handles_unreachable_database() {
+        let result = create_pool("postgresql://postgres@127.0.0.1:1/unreachable").await;
+        assert!(result.is_err());
     }
 }
 
@@ -239,15 +265,17 @@ mod routes_integration {
         http::{Method, Request, StatusCode},
     };
     use hyper::body::to_bytes;
-    use rust_basic_api::routes::router;
+    use rust_basic_api::routes::{router, AppState};
     use tower::ServiceExt;
+
+    async fn app() -> axum::Router {
+        let pool = super::create_test_pool().await;
+        router(AppState { pool })
+    }
 
     #[tokio::test]
     async fn health_endpoint_returns_200() {
-        let pool =
-            rust_basic_api::repository::create_pool("postgresql://postgres@localhost:5432/test")
-                .unwrap();
-        let app = router(pool);
+        let app = app().await;
 
         let response = app
             .oneshot(
@@ -265,10 +293,7 @@ mod routes_integration {
 
     #[tokio::test]
     async fn health_endpoint_returns_ok_text() {
-        let pool =
-            rust_basic_api::repository::create_pool("postgresql://postgres@localhost:5432/test")
-                .unwrap();
-        let app = router(pool);
+        let app = app().await;
 
         let response = app
             .oneshot(
@@ -288,10 +313,7 @@ mod routes_integration {
 
     #[tokio::test]
     async fn unknown_routes_return_404() {
-        let pool =
-            rust_basic_api::repository::create_pool("postgresql://postgres@localhost:5432/test")
-                .unwrap();
-        let app = router(pool);
+        let app = app().await;
 
         let response = app
             .oneshot(
@@ -309,10 +331,7 @@ mod routes_integration {
 
     #[tokio::test]
     async fn health_endpoint_only_accepts_get() {
-        let pool =
-            rust_basic_api::repository::create_pool("postgresql://postgres@localhost:5432/test")
-                .unwrap();
-        let app = router(pool);
+        let app = app().await;
 
         let response = app
             .oneshot(

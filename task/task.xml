@@ -1,0 +1,139 @@
+<prompt>
+    <role>You are a senior Rust developer specializing in database design and SQLx integration for backend services.</role>
+    <task>
+        <id>2</id>
+        <title>Database Schema and Migrations</title>
+        <description>Set up the PostgreSQL database schema with migrations using SQLx, establishing the foundation for data persistence in the REST API.</description>
+        <priority>high</priority>
+        <status>pending</status>
+        <dependencies>1</dependencies>
+    </task>
+    <technical_specifications>
+        <spec>Create migrations directory and initial migration file 001_initial_schema.sql</spec>
+        <spec>Define users table with id, name, email, created_at, and updated_at columns</spec>
+        <spec>Add performance indexes on email and created_at columns</spec>
+        <spec>Implement automatic updated_at trigger for timestamp management</spec>
+        <spec>Configure SQLx connection pool with appropriate limits and timeouts</spec>
+        <spec>Integrate database pool into application state</spec>
+        <spec>Enable automatic migration execution on application startup</spec>
+        <spec>Create test utilities for database integration testing</spec>
+        <spec>Configure separate test database environment</spec>
+    </technical_specifications>
+    <implementation_details>
+        1. SQLx CLI Installation:
+           cargo install sqlx-cli --no-default-features --features postgres
+        
+        2. Migration File Structure (migrations/001_initial_schema.sql):
+           -- Main users table
+           CREATE TABLE users (
+               id SERIAL PRIMARY KEY,
+               name VARCHAR(255) NOT NULL,
+               email VARCHAR(255) UNIQUE NOT NULL,
+               created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+               updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+           );
+           
+           -- Performance indexes
+           CREATE INDEX idx_users_email ON users(email);
+           CREATE INDEX idx_users_created_at ON users(created_at DESC);
+           
+           -- Updated_at trigger
+           CREATE OR REPLACE FUNCTION update_updated_at_column()
+           RETURNS TRIGGER AS $$
+           BEGIN
+               NEW.updated_at = CURRENT_TIMESTAMP;
+               RETURN NEW;
+           END;
+           $$ language 'plpgsql';
+           
+           CREATE TRIGGER update_users_updated_at BEFORE UPDATE
+               ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        
+        3. Connection Pool Configuration (src/repository/mod.rs):
+           - Max connections: 10
+           - Min connections: 2
+           - Acquire timeout: 3 seconds
+           - Idle timeout: 600 seconds
+           - Max lifetime: 1800 seconds
+           - Implement create_pool() function returning PgPool
+        
+        4. Test Utilities (src/repository/test_utils.rs):
+           - setup_test_database(): Initialize test database with migrations
+           - transaction(): Create isolated test transactions
+           - cleanup_database(): Truncate tables for test isolation
+           - Use std::sync::Once for one-time initialization
+        
+        5. Application Integration (src/main.rs):
+           - Create AppState struct with pool field
+           - Initialize pool using repository::create_pool()
+           - Run migrations with sqlx::migrate!().run()
+           - Pass AppState to router with with_state()
+           - Add proper error context with anyhow
+        
+        6. Test Environment (.env.test):
+           DATABASE_URL=postgresql://user@localhost:5432/test_db
+           SERVER_PORT=3001
+           RUST_LOG=debug
+        
+        7. Integration Tests:
+           - Verify table existence in information_schema
+           - Check index creation
+           - Test CRUD operations
+           - Validate constraints
+           - Test trigger functionality
+    </implementation_details>
+    <acceptance_criteria>
+        <criterion>Migrations directory exists with initial schema file</criterion>
+        <criterion>Users table created with all specified columns</criterion>
+        <criterion>Indexes created on email and created_at columns</criterion>
+        <criterion>Updated_at trigger functions correctly on updates</criterion>
+        <criterion>Database pool connects successfully with configured limits</criterion>
+        <criterion>Migrations run automatically on application startup</criterion>
+        <criterion>Test utilities provide isolated test environments</criterion>
+        <criterion>Integration tests pass for schema validation</criterion>
+        <criterion>Application starts without database errors</criterion>
+        <criterion>Connection pool handles concurrent requests</criterion>
+    </acceptance_criteria>
+    <test_strategy>
+        1. Migration Testing:
+           - Run: sqlx migrate run
+           - Verify: Check migration history with sqlx migrate info
+           - Validate: Connect to database and inspect schema
+        
+        2. Schema Validation:
+           - Query information_schema for table structure
+           - Verify all columns with correct data types
+           - Check constraints and indexes
+        
+        3. Trigger Testing:
+           - Insert a record
+           - Update the record
+           - Verify updated_at > created_at
+        
+        4. Connection Pool Testing:
+           - Start application
+           - Send concurrent requests
+           - Monitor connection pool metrics
+           - Verify no connection exhaustion
+        
+        5. Integration Testing:
+           - Run: cargo test --test database_integration
+           - Test table existence
+           - Test CRUD operations
+           - Test constraint enforcement
+        
+        6. Error Handling:
+           - Test with invalid DATABASE_URL
+           - Test with database offline
+           - Verify graceful error messages
+    </test_strategy>
+    <instructions>
+        Think step-by-step about database design and migration strategy. Start by installing SQLx CLI,
+        then create the migrations directory and initial schema. Pay special attention to the trigger
+        implementation for automatic timestamp updates. When implementing the connection pool, consider
+        production requirements for connection limits and timeouts. Ensure test utilities properly
+        isolate test cases to prevent interference. Use transactions for test isolation where appropriate.
+        Follow SQLx best practices for query macros and prepared statements. Include comprehensive error
+        handling with context for debugging. Test thoroughly with both unit and integration tests.
+    </instructions>
+</prompt>

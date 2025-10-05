@@ -10,22 +10,6 @@
     "agent_docs_gemini_query",
     "agent_docs_grok_query",
     "agent_docs_qwen_query",
-    "agent_docs_openhands_query",
-    "kubernetes_helmInstall",
-    "kubernetes_helmRollback",
-    "kubernetes_getPodMetrics",
-    "kubernetes_getPodsLogs",
-    "kubernetes_describeResource",
-    "kubernetes_listResources",
-    "kubernetes_getEvents",
-    "kubernetes_getNodeMetrics",
-    "kubernetes_helmList",
-    "kubernetes_helmGet",
-    "kubernetes_helmUpgrade",
-    "kubernetes_helmRepoAdd",
-    "kubernetes_helmRepoList",
-    "kubernetes_getResource",
-    "kubernetes_helmUninstall",
-    "kubernetes_createResource"
+    "agent_docs_openhands_query"
   ]
 }

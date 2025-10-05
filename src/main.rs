@@ -22,8 +22,17 @@ async fn main() -> AppResult<()> {
     let config =
         config::Config::from_env().context("failed to load configuration from environment")?;
     let pool = create_pool(&config.database_url)
+        .await
         .context("failed to initialise PostgreSQL connection pool")?;
-    let app = routes::router(pool);
+
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .context("failed to run database migrations")?;
+
+    info!("Database connected and migrations completed");
+
+    let app = routes::router(routes::AppState { pool });
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
     info!("listening on {addr}");

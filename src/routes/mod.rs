@@ -4,16 +4,22 @@ use tracing::instrument;
 
 use crate::models::HealthResponse;
 
-/// Build the application router with all HTTP routes.
-pub fn router(pool: PgPool) -> Router {
-    Router::new()
-        .route("/health", get(health_check))
-        .with_state(pool)
+/// Shared application state passed to request handlers.
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
 }
 
-#[instrument(name = "health_check", skip(pool))]
-async fn health_check(State(pool): State<PgPool>) -> &'static str {
-    if pool.is_closed() {
+/// Build the application router with all HTTP routes.
+pub fn router(state: AppState) -> Router {
+    Router::new()
+        .route("/health", get(health_check))
+        .with_state(state)
+}
+
+#[instrument(name = "health_check", skip(state))]
+async fn health_check(State(state): State<AppState>) -> &'static str {
+    if state.pool.is_closed() {
         tracing::warn!("database connection pool is closed");
     }
 
@@ -32,11 +38,9 @@ mod tests {
 
     #[tokio::test]
     async fn health_check_returns_ok_payload() {
-        let pool = crate::repository::create_pool(
-            "postgresql://postgres@localhost:5432/rust_basic_api_test",
-        )
-        .expect("pool should be created lazily");
-        let app = router(pool);
+        let pool = crate::repository::test_utils::setup_test_database().await;
+        crate::repository::test_utils::cleanup_database(&pool).await;
+        let app = router(AppState { pool: pool.clone() });
 
         let response = app
             .oneshot(
@@ -57,5 +61,7 @@ mod tests {
         let payload = std::str::from_utf8(&body).expect("response should be valid UTF-8");
 
         assert_eq!(payload, "OK");
+
+        crate::repository::test_utils::cleanup_database(&pool).await;
     }
 }
