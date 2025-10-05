@@ -19,9 +19,28 @@ fn load_test_environment() {
         if env::var("DATABASE_URL").is_err() {
             if let Ok(test_url) = env::var("TEST_DATABASE_URL") {
                 env::set_var("DATABASE_URL", test_url);
+            } else if let Some(composed_url) = build_database_url_from_components() {
+                env::set_var("DATABASE_URL", composed_url);
+            }
+        }
+
+        if env::var("TEST_DATABASE_URL").is_err() {
+            if let Some(composed_url) = build_database_url_from_components() {
+                env::set_var("TEST_DATABASE_URL", composed_url);
             }
         }
     });
+}
+
+fn build_database_url_from_components() -> Option<String> {
+    let scheme = env::var("TEST_DB_SCHEME").ok()?;
+    let user = env::var("TEST_DB_USER").ok()?;
+    let password = env::var("TEST_DB_PASSWORD").ok()?;
+    let host = env::var("TEST_DB_HOST").ok()?;
+    let port = env::var("TEST_DB_PORT").ok()?;
+    let name = env::var("TEST_DB_NAME").ok()?;
+
+    Some(format!("{scheme}://{user}:{password}@{host}:{port}/{name}"))
 }
 
 async fn ensure_database_exists(database_url: &str) {
