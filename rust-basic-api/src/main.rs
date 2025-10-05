@@ -9,7 +9,7 @@ use config::Config;
 use models::AppState;
 use repository::create_pool;
 use std::net::SocketAddr;
-use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
