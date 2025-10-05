@@ -1,10 +1,17 @@
-use std::sync::Once;
-
 use sqlx::{PgPool, Postgres, Transaction};
 
 use super::create_pool;
 
-static INIT: Once = Once::new();
+fn ensure_test_environment() {
+    let database_url_missing =
+        std::env::var("TEST_DATABASE_URL").is_err() && std::env::var("DATABASE_URL").is_err();
+
+    if database_url_missing {
+        if let Err(error) = dotenv::from_filename(".env.test") {
+            panic!("failed to load test environment configuration: {error}");
+        }
+    }
+}
 
 /// Initialise a connection pool for integration tests and run migrations.
 ///
@@ -13,9 +20,7 @@ static INIT: Once = Once::new();
 /// Panics if the database URL environment variables are not set or if the
 /// connection pool or migrations fail to initialise.
 pub async fn setup_test_database() -> PgPool {
-    INIT.call_once(|| {
-        let _ = dotenv::from_filename(".env.test");
-    });
+    ensure_test_environment();
 
     let database_url = std::env::var("TEST_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))

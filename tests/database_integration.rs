@@ -1,18 +1,19 @@
-use std::{env, sync::Once, time::Duration};
+use std::{env, time::Duration};
 
 use chrono::{DateTime, Utc};
 use serial_test::serial;
 use sqlx::{PgPool, Row};
 
-fn load_test_env() {
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        let _ = dotenv::from_filename(".env.test");
-    });
+fn ensure_test_environment() {
+    if env::var("TEST_DATABASE_URL").is_err() && env::var("DATABASE_URL").is_err() {
+        if let Err(error) = dotenv::from_filename(".env.test") {
+            panic!("failed to load test environment configuration: {error}");
+        }
+    }
 }
 
 fn database_url() -> String {
-    load_test_env();
+    ensure_test_environment();
     env::var("TEST_DATABASE_URL")
         .or_else(|_| env::var("DATABASE_URL"))
         .expect("DATABASE_URL or TEST_DATABASE_URL must be configured")
