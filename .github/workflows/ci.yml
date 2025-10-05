@@ -1,6 +1,7 @@
+---
 name: CI
 
-on:
+"on":
   pull_request:
     branches: [main]
   push:
@@ -57,7 +58,9 @@ jobs:
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run Clippy with pedantic
-        run: cd rust-basic-api && cargo clippy --workspace --all-targets --all-features -- -D warnings -W clippy::pedantic
+        run: >
+          cd rust-basic-api && cargo clippy --workspace --all-targets
+          --all-features -- -D warnings -W clippy::pedantic
 
   test:
     name: Tests
@@ -119,7 +122,9 @@ jobs:
           key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build project
-        run: cd rust-basic-api && cargo build --workspace --all-features --release
+        run: >
+          cd rust-basic-api && cargo build --workspace --all-features
+          --release
 
   docker:
     name: Docker Build
