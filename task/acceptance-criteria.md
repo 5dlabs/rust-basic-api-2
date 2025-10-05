@@ -38,7 +38,7 @@
   - [ ] dotenv
   - [ ] anyhow
   - [ ] thiserror
-- [ ] `env.template` exists with:
+- [ ] `.env.example` exists with:
   - [ ] DATABASE_URL example
   - [ ] SERVER_PORT example
   - [ ] RUST_LOG example

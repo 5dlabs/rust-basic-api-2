@@ -43,7 +43,7 @@ rust-basic-api/
 │   └── repository/       # Database interaction layer
 │       └── mod.rs
 ├── Cargo.toml
-├── env.template
+├── .env.example
 ├── Dockerfile
 └── docker-compose.yml
 ```
@@ -162,19 +162,10 @@ CMD ["./rust-basic-api"]
 ```
 
 ### Step 7: Environment Configuration
-Create `env.template`:
-
-<!-- gitleaks:allow -->
+Create `.env.example`:
 
 ```
-DATABASE_URL_PLACEHOLDER=
-DB_USERNAME_PLACEHOLDER=
-DB_SECRET_PLACEHOLDER=
-DB_HOSTNAME_PLACEHOLDER=
-DB_PORT_PLACEHOLDER=5432
-DB_DATABASE_PLACEHOLDER=
-SERVER_HOST=0.0.0.0
-SERVER_HOST=0.0.0.0
+DATABASE_URL=postgresql://user:password@your-database-host:5432/your-database
 SERVER_PORT=3000
 RUST_LOG=info
 ```

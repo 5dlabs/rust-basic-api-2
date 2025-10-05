@@ -119,12 +119,12 @@ async fn test_graceful_shutdown_concept() {
 #[tokio::test]
 async fn test_ctrl_c_signal_handling() {
     // Test the pattern for signal handling
-    use std::io::{Error, ErrorKind};
+    use std::io::Error;
 
     let signal_result: Result<(), Error> = Ok(());
     assert!(signal_result.is_ok());
 
-    let signal_error: Result<(), Error> = Err(Error::new(ErrorKind::Other, "signal failed"));
+    let signal_error: Result<(), Error> = Err(Error::other("signal failed"));
     assert!(signal_error.is_err());
 }
 
@@ -177,7 +177,7 @@ fn test_database_url_validation() {
 
     for url in valid_urls {
         assert!(url.starts_with("postgresql://"));
-        assert!(url.contains("@"));
+        assert!(url.contains('@'));
         assert!(url.contains(":5432"));
     }
 }

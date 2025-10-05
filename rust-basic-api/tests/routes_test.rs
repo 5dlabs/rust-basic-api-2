@@ -52,7 +52,6 @@ async fn test_health_endpoint_returns_text() {
         .unwrap();
 
     // Extract body
-    use axum::body::HttpBody;
     let body = response.into_body();
     let bytes = hyper::body::to_bytes(body).await.unwrap();
     let text = String::from_utf8(bytes.to_vec()).unwrap();

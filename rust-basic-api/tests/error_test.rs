@@ -65,7 +65,9 @@ fn test_app_result_type() {
     // Test Ok case
     let ok_result: AppResult<i32> = Ok(42);
     assert!(ok_result.is_ok());
-    assert_eq!(ok_result.unwrap(), 42);
+    if let Ok(value) = ok_result {
+        assert_eq!(value, 42);
+    }
 
     // Test Err case
     let err_result: AppResult<i32> = Err(AppError::Runtime(anyhow!("test error")));

@@ -19,7 +19,10 @@ fn test_config_requires_database_url() {
 
 #[test]
 fn test_config_with_valid_database_url() {
-    env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb");
+    env::set_var(
+        "DATABASE_URL",
+        "postgresql://test:test@localhost:5432/testdb",
+    );
 
     let db_url = env::var("DATABASE_URL").unwrap();
     assert!(db_url.starts_with("postgresql://"));
@@ -87,7 +90,7 @@ fn test_config_invalid_host() {
 fn test_database_url_format() {
     let url = "postgresql://user:pass@localhost:5432/db";
     assert!(url.starts_with("postgresql://"));
-    assert!(url.contains("@"));
+    assert!(url.contains('@'));
     assert!(url.contains(":5432"));
     assert!(url.ends_with("/db"));
 }

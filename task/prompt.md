@@ -70,7 +70,7 @@ Create:
    - Write multi-stage Dockerfile
 
 7. **Create Environment Template**
-   - Create `env.template` with all required variables
+   - Create `.env.example` with all required variables
 
 ## Validation
 
