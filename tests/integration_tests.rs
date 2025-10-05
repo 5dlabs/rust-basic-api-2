@@ -92,7 +92,7 @@ mod config_integration {
             source: env::VarError::NotPresent,
         };
 
-        let message = format!("{}", error);
+        let message = format!("{error}");
         assert!(message.contains("DATABASE_URL"));
     }
 
@@ -104,7 +104,7 @@ mod config_integration {
             source: "abc123".parse::<u16>().unwrap_err(),
         };
 
-        let message = format!("{}", error);
+        let message = format!("{error}");
         assert!(message.contains("abc123"));
     }
 
@@ -116,7 +116,7 @@ mod config_integration {
         env::set_var("SERVER_PORT", "8080");
 
         let config = Config::from_env().unwrap();
-        let debug_str = format!("{:?}", config);
+        let debug_str = format!("{config:?}");
 
         assert!(debug_str.contains("Config"));
         assert!(debug_str.contains("8080"));
@@ -213,7 +213,7 @@ mod models_integration {
     #[test]
     fn health_response_debug_formatting() {
         let response = HealthResponse::healthy();
-        let debug_str = format!("{:?}", response);
+        let debug_str = format!("{response:?}");
         assert!(debug_str.contains("OK"));
     }
 

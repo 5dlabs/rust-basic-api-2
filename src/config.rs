@@ -12,6 +12,14 @@ pub struct Config {
 
 impl Config {
     /// Load configuration values from environment variables.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::EnvVar`] if the `DATABASE_URL` environment variable
+    /// is not set or cannot be read.
+    ///
+    /// Returns [`ConfigError::InvalidPort`] if the `SERVER_PORT` environment variable
+    /// is set but cannot be parsed as a valid `u16` port number.
     pub fn from_env() -> Result<Self, ConfigError> {
         dotenv().ok();
 

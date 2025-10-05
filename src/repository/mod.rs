@@ -6,6 +6,11 @@ use sqlx::{
 };
 
 /// Create a lazily-connected `PostgreSQL` connection pool.
+///
+/// # Errors
+///
+/// Returns a [`sqlx::Error`] if the database connection string cannot be parsed
+/// into valid `PostgreSQL` connection options.
 pub fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
     let options = PgConnectOptions::from_str(database_url)?.application_name("rust-basic-api");
 

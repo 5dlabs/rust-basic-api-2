@@ -60,6 +60,7 @@ async fn app_error_response_body_contains_error_message() {
 
 #[test]
 fn app_result_type_alias_works() {
+    #[allow(clippy::unnecessary_wraps)]
     fn test_function() -> AppResult<String> {
         Ok("success".to_string())
     }
