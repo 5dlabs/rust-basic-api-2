@@ -12,7 +12,7 @@ Axum-based starter API service for long-running tasks with PostgreSQL connectivi
 
 ### Setup
 
-1. Copy `.env.example` to `.env` and update the values as needed.
+1. Copy `env.template` to `.env` and update the values as needed.
 2. Install dependencies and run the application:
 
 ```bash
