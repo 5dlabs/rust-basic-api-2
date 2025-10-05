@@ -1,107 +1,100 @@
-# Task ID: 1
-# Title: Project Setup and Configuration
+# Task ID: 2
+# Title: Database Schema and Migrations
 # Status: pending
-# Dependencies: None
+# Dependencies: 1
 # Priority: high
-# Description: Initialize the Rust project with Cargo, set up the project structure, and configure dependencies
+# Description: Set up the PostgreSQL database schema with migrations using SQLx
 # Details:
-1. Create a new Rust project using `cargo new rust-basic-api --bin`
-2. Configure Cargo.toml with required dependencies:
-   - axum = "0.6.0" (or latest)
-   - tokio = { version = "1", features = ["full"] }
-   - serde = { version = "1", features = ["derive"] }
-   - serde_json = "1"
-   - sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "json"] }
-   - tracing = "0.1"
-   - tracing-subscriber = "0.3"
-   - dotenv = "0.15"
-   - anyhow = "1.0"
-   - thiserror = "1.0"
-3. Create basic project structure:
-   - src/
-     - main.rs
-     - config.rs
-     - error.rs
-     - models/
-     - routes/
-     - repository/
-4. Implement configuration management in config.rs:
+1. Create a migrations directory in the project root
+2. Create the initial migration file `migrations/001_initial_schema.sql` with the schema from the PRD:
+```sql
+-- Main users table
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Performance indexes
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created_at ON users(created_at DESC);
+```
+3. Install SQLx CLI: `cargo install sqlx-cli`
+4. Add database connection setup in src/repository/mod.rs:
 ```rust
-use dotenv::dotenv;
-use std::env;
+use sqlx::postgres::{PgPool, PgPoolOptions};
+use std::time::Duration;
 
-#[derive(Debug, Clone)]
-pub struct Config {
-    pub database_url: String,
-    pub server_port: u16,
+pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    PgPoolOptions::new()
+        .max_connections(10)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(database_url)
+        .await
 }
+```
+5. Update main.rs to include database connection:
+```rust
+// Inside main function
+let pool = repository::create_pool(&config.database_url).await?;
 
-impl Config {
-    pub fn from_env() -> Result<Self, env::VarError> {
-        dotenv().ok();
+// Run migrations
+sqlx::migrate!().run(&pool).await?;
+
+// Add pool to app state
+let app = Router::new()
+    .route("/health", axum::routing::get(health_check))
+    .with_state(pool);
+```
+6. Create a database test utility in src/repository/test_utils.rs for integration tests:
+```rust
+#[cfg(test)]
+pub mod test_utils {
+    use sqlx::{PgPool, Postgres, Transaction};
+    use std::sync::Once;
+    
+    static INIT: Once = Once::new();
+    
+    pub async fn setup_test_database() -> PgPool {
+        INIT.call_once(|| {
+            dotenv::from_filename(".env.test").ok();
+        });
         
-        let database_url = env::var("DATABASE_URL")?;
-        let server_port = env::var("SERVER_PORT")
-            .unwrap_or_else(|_| "3000".to_string())
-            .parse()
-            .unwrap_or(3000);
+        let database_url = std::env::var("DATABASE_URL")
+            .expect("DATABASE_URL must be set in .env.test");
             
-        Ok(Config {
-            database_url,
-            server_port,
-        })
+        let pool = super::create_pool(&database_url).await.unwrap();
+        
+        // Run migrations
+        sqlx::migrate!().run(&pool).await.unwrap();
+        
+        pool
+    }
+    
+    pub async fn transaction<'a>(pool: &'a PgPool) -> Transaction<'a, Postgres> {
+        pool.begin().await.unwrap()
     }
 }
 ```
-5. Create a basic main.rs with server setup:
-```rust
-mod config;
-mod error;
-mod models;
-mod routes;
-mod repository;
-
-use config::Config;
-use std::net::SocketAddr;
-use axum::Router;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-    
-    // Load configuration
-    let config = Config::from_env()?;
-    
-    // Build application router
-    let app = Router::new()
-        .route("/health", axum::routing::get(health_check));
-    
-    // Run the server
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
-    tracing::info!("Listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
-    
-    Ok(())
-}
-
-async fn health_check() -> &'static str {
-    "OK"
-}
-```
-6. Create a Dockerfile as specified in the PRD
 
 # Test Strategy:
-1. Verify project builds with `cargo build`
-2. Run the server locally and test the health endpoint with `curl http://localhost:3000/health`
-3. Verify Docker setup works with `docker run -p 3000:3000 -e DATABASE_URL=your_database_url rust-basic-api` and test the health endpoint
-4. Check that environment variables are correctly loaded by setting test values
-5. Verify logging is working by checking console output
+1. Verify migrations run successfully with `sqlx migrate run`
+2. Test database connection by running the application and checking logs
+3. Create a simple test that connects to the database and verifies the users table exists:
+```rust
+#[sqlx::test]
+async fn test_database_schema() {
+    let pool = setup_test_database().await;
+    
+    // Check if users table exists
+    let result = sqlx::query!("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users')")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        
+    assert!(result.exists.unwrap());
+}
+```
+4. Verify indexes are created correctly with a query to the information_schema

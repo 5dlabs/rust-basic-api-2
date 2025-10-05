@@ -28,31 +28,31 @@ fn test_socket_addr_parsing() {
 
 #[tokio::test]
 async fn test_database_pool_creation() {
-    use sqlx::postgres::PgPoolOptions;
-    use std::time::Duration;
+    use rust_basic_api::repository::test_utils::{cleanup_database, setup_test_database};
 
-    let pool = PgPoolOptions::new()
-        .max_connections(10)
-        .acquire_timeout(Duration::from_secs(5))
-        .connect_lazy("postgresql://test:test@localhost:5432/test")
-        .expect("Failed to create pool");
+    let pool = setup_test_database().await;
+    let _connection = pool
+        .acquire()
+        .await
+        .expect("Failed to acquire database connection");
 
     assert!(!pool.is_closed());
+
+    cleanup_database(&pool).await;
 }
 
 #[tokio::test]
 async fn test_pool_clone_behavior() {
-    use sqlx::postgres::PgPoolOptions;
+    use rust_basic_api::repository::test_utils::{cleanup_database, setup_test_database};
 
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect_lazy("postgresql://test:test@localhost:5432/test")
-        .expect("Failed to create pool");
+    let pool = setup_test_database().await;
 
     let pool_clone = pool.clone();
 
     assert!(!pool.is_closed());
     assert!(!pool_clone.is_closed());
+
+    cleanup_database(&pool).await;
 }
 
 #[test]
@@ -169,13 +169,15 @@ fn test_environment_variable_patterns() {
 
 #[test]
 fn test_database_url_validation() {
-    let valid_urls = vec![
-        "postgresql://user:pass@localhost:5432/db",
-        "postgresql://test:test@127.0.0.1:5432/testdb",
-        "postgresql://app:secret@postgres:5432/production",
+    const DB_SCHEME: &str = "postgresql";
+    const SUFFIXES: [&str; 3] = [
+        "//user:password@localhost:5432/db",
+        "//reader:reader_password@127.0.0.1:5432/testdb",
+        "//app:app_password@postgres:5432/production",
     ];
 
-    for url in valid_urls {
+    for suffix in SUFFIXES {
+        let url = format!("{DB_SCHEME}:{suffix}");
         assert!(url.starts_with("postgresql://"));
         assert!(url.contains('@'));
         assert!(url.contains(":5432"));

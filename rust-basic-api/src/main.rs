@@ -6,12 +6,11 @@ pub mod models;
 pub mod repository;
 pub mod routes;
 
-use std::{net::SocketAddr, time::Duration};
+use std::net::SocketAddr;
 
+use crate::repository::PoolSettings;
 use config::Config;
 use error::{AppError, AppResult};
-use repository::RepositoryPool;
-use sqlx::postgres::PgPoolOptions;
 use tokio::signal;
 use tracing::{info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -22,12 +21,23 @@ async fn main() -> AppResult<()> {
 
     let config = Config::from_env()?;
 
-    let pool: RepositoryPool = PgPoolOptions::new()
-        .max_connections(10)
-        .acquire_timeout(Duration::from_secs(5))
-        .connect_lazy(&config.database_url)?;
+    let pool_settings = PoolSettings::from(&config.database);
+    let pool = repository::create_pool(&config.database.url, &pool_settings)
+        .await
+        .map_err(|err| {
+            warn!(error = %err, "failed to create database pool");
+            AppError::from(err)
+        })?;
 
-    let app = routes::create_router(pool);
+    repository::MIGRATOR.run(&pool).await.map_err(|err| {
+        warn!(error = %err, "failed to run database migrations");
+        AppError::from(err)
+    })?;
+
+    info!("database connected and migrations completed");
+
+    let app_state = routes::AppState { pool };
+    let app = routes::create_router().with_state(app_state);
 
     let addr = SocketAddr::new(config.server_host, config.server_port);
     info!(%addr, "starting HTTP server");

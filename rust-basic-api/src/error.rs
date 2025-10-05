@@ -1,7 +1,7 @@
 //! Error handling types for the application.
 
 use anyhow::Error as AnyError;
-use sqlx::Error as SqlxError;
+use sqlx::{migrate::MigrateError, Error as SqlxError};
 use thiserror::Error;
 
 /// Result alias that uses [`AppError`] as the error type.
@@ -21,6 +21,12 @@ pub enum AppError {
     /// Represents other runtime failures propagated through [`anyhow::Error`].
     #[error(transparent)]
     Runtime(#[from] AnyError),
+}
+
+impl From<MigrateError> for AppError {
+    fn from(error: MigrateError) -> Self {
+        Self::Runtime(error.into())
+    }
 }
 
 /// Errors emitted while loading configuration from the environment.

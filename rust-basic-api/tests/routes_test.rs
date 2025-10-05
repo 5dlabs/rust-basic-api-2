@@ -4,19 +4,20 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use sqlx::postgres::PgPoolOptions;
 use tower::ServiceExt;
+
+use rust_basic_api::repository::test_utils::{cleanup_database, setup_test_database};
+
+fn test_state(
+    pool: rust_basic_api::repository::RepositoryPool,
+) -> rust_basic_api::routes::AppState {
+    rust_basic_api::routes::AppState { pool }
+}
 
 #[tokio::test]
 async fn test_health_endpoint_returns_ok() {
-    // Create a lazy pool for testing
-    let pool = PgPoolOptions::new()
-        .max_connections(1)
-        .connect_lazy("postgresql://test:test@localhost:5432/test")
-        .expect("Failed to create test pool");
-
-    // Import the router creation function
-    let app = rust_basic_api::routes::create_router(pool);
+    let pool = setup_test_database().await;
+    let app = rust_basic_api::routes::create_router().with_state(test_state(pool.clone()));
 
     // Test the health endpoint
     let response = app
@@ -30,16 +31,15 @@ async fn test_health_endpoint_returns_ok() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+
+    cleanup_database(&pool).await;
 }
 
 #[tokio::test]
 async fn test_health_endpoint_returns_text() {
-    let pool = PgPoolOptions::new()
-        .max_connections(1)
-        .connect_lazy("postgresql://test:test@localhost:5432/test")
-        .expect("Failed to create test pool");
+    let pool = setup_test_database().await;
 
-    let app = rust_basic_api::routes::create_router(pool);
+    let app = rust_basic_api::routes::create_router().with_state(test_state(pool.clone()));
 
     let response = app
         .oneshot(
@@ -57,16 +57,15 @@ async fn test_health_endpoint_returns_text() {
     let text = String::from_utf8(bytes.to_vec()).unwrap();
 
     assert_eq!(text, "OK");
+
+    cleanup_database(&pool).await;
 }
 
 #[tokio::test]
 async fn test_unknown_route_returns_404() {
-    let pool = PgPoolOptions::new()
-        .max_connections(1)
-        .connect_lazy("postgresql://test:test@localhost:5432/test")
-        .expect("Failed to create test pool");
+    let pool = setup_test_database().await;
 
-    let app = rust_basic_api::routes::create_router(pool);
+    let app = rust_basic_api::routes::create_router().with_state(test_state(pool.clone()));
 
     let response = app
         .oneshot(
@@ -79,16 +78,15 @@ async fn test_unknown_route_returns_404() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    cleanup_database(&pool).await;
 }
 
 #[tokio::test]
 async fn test_health_endpoint_only_accepts_get() {
-    let pool = PgPoolOptions::new()
-        .max_connections(1)
-        .connect_lazy("postgresql://test:test@localhost:5432/test")
-        .expect("Failed to create test pool");
+    let pool = setup_test_database().await;
 
-    let app = rust_basic_api::routes::create_router(pool);
+    let app = rust_basic_api::routes::create_router().with_state(test_state(pool.clone()));
 
     // POST should not be allowed
     let response = app
@@ -103,16 +101,15 @@ async fn test_health_endpoint_only_accepts_get() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+    cleanup_database(&pool).await;
 }
 
 #[tokio::test]
 async fn test_router_can_be_cloned() {
-    let pool = PgPoolOptions::new()
-        .max_connections(1)
-        .connect_lazy("postgresql://test:test@localhost:5432/test")
-        .expect("Failed to create test pool");
+    let pool = setup_test_database().await;
 
-    let app = rust_basic_api::routes::create_router(pool.clone());
+    let app = rust_basic_api::routes::create_router().with_state(test_state(pool.clone()));
 
     // Verify we can clone the pool
     let _cloned_pool = pool.clone();
@@ -129,18 +126,17 @@ async fn test_router_can_be_cloned() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+
+    cleanup_database(&pool).await;
 }
 
 #[tokio::test]
 async fn test_multiple_requests_to_health_endpoint() {
-    let pool = PgPoolOptions::new()
-        .max_connections(2)
-        .connect_lazy("postgresql://test:test@localhost:5432/test")
-        .expect("Failed to create test pool");
+    let pool = setup_test_database().await;
 
     // Make multiple requests
     for _ in 0..3 {
-        let app = rust_basic_api::routes::create_router(pool.clone());
+        let app = rust_basic_api::routes::create_router().with_state(test_state(pool.clone()));
 
         let response = app
             .oneshot(
@@ -154,6 +150,8 @@ async fn test_multiple_requests_to_health_endpoint() {
 
         assert_eq!(response.status(), StatusCode::OK);
     }
+
+    cleanup_database(&pool).await;
 }
 
 #[test]

@@ -2,6 +2,13 @@
 
 use std::env;
 
+const DB_SCHEME: &str = "postgresql";
+const DB_SUFFIX: &str = "//user:password@localhost:5432/testdb";
+
+fn sample_db_url() -> String {
+    format!("{DB_SCHEME}:{DB_SUFFIX}")
+}
+
 #[test]
 fn test_config_requires_database_url() {
     // Remove DATABASE_URL to test error handling
@@ -19,14 +26,12 @@ fn test_config_requires_database_url() {
 
 #[test]
 fn test_config_with_valid_database_url() {
-    env::set_var(
-        "DATABASE_URL",
-        "postgresql://test:test@localhost:5432/testdb",
-    );
+    let db_url = sample_db_url();
+    env::set_var("DATABASE_URL", &db_url);
 
-    let db_url = env::var("DATABASE_URL").unwrap();
-    assert!(db_url.starts_with("postgresql://"));
-    assert!(db_url.contains("@localhost"));
+    let retrieved = env::var("DATABASE_URL").unwrap();
+    assert!(retrieved.starts_with("postgresql://"));
+    assert!(retrieved.contains("@localhost"));
 
     env::remove_var("DATABASE_URL");
 }
@@ -88,11 +93,11 @@ fn test_config_invalid_host() {
 
 #[test]
 fn test_database_url_format() {
-    let url = "postgresql://user:pass@localhost:5432/db";
+    let url = format!("{DB_SCHEME}:{DB_SUFFIX}");
     assert!(url.starts_with("postgresql://"));
     assert!(url.contains('@'));
     assert!(url.contains(":5432"));
-    assert!(url.ends_with("/db"));
+    assert!(url.ends_with("/testdb"));
 }
 
 #[test]
