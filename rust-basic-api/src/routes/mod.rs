@@ -13,7 +13,7 @@ pub fn create_router(state: AppState) -> Router {
 }
 
 async fn health_check(State(state): State<AppState>) -> AppResult<(StatusCode, &'static str)> {
-    if state.db_pool.is_closed() {
+    if state.pool.is_closed() {
         tracing::warn!("Database pool reported as closed during health check");
         return Err(AppError::service_unavailable("database pool is closed"));
     }

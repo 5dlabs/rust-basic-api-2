@@ -1,182 +1,270 @@
-# Task 1: Project Setup and Configuration
+# Task 2: Database Schema and Migrations
 
 ## Overview
-Initialize the Rust project with Cargo, set up the project structure, and configure dependencies for building a production-ready REST API with Axum framework.
+Set up the PostgreSQL database schema with migrations using SQLx, establishing the foundation for data persistence in the REST API.
 
 ## Technical Requirements
 
-### 1. Project Initialization
-- Create a new Rust binary project using Cargo
-- Configure the project for async runtime with Tokio
-- Set up proper error handling with anyhow and thiserror
+### 1. Database Schema Design
+Implement the following database schema:
+- **Users table** with columns for id, name, email, and timestamps
+- **Performance indexes** on email and created_at columns
+- **Proper constraints** including primary key and unique constraints
 
-### 2. Dependencies Configuration
-Update `Cargo.toml` with the following dependencies:
+### 2. Migration System
+- Use SQLx migrations for schema versioning
+- Create migration files in standard SQL format
+- Enable automatic migration running on application startup
 
-```toml
-[dependencies]
-axum = "0.6.0"
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "json"] }
-tracing = "0.1"
-tracing-subscriber = "0.3"
-dotenv = "0.15"
-anyhow = "1.0"
-thiserror = "1.0"
-```
-
-### 3. Project Structure
-Create the following directory structure:
-
-```
-rust-basic-api/
-├── src/
-│   ├── main.rs           # Application entry point
-│   ├── config.rs         # Configuration management
-│   ├── error.rs          # Error types and handling
-│   ├── models/           # Data models
-│   │   └── mod.rs
-│   ├── routes/           # API route handlers
-│   │   └── mod.rs
-│   └── repository/       # Database interaction layer
-│       └── mod.rs
-├── Cargo.toml
-├── .env.example
-├── Dockerfile
-└── docker-compose.yml
-```
+### 3. Connection Pool Management
+- Configure connection pooling with appropriate limits
+- Set timeout values for connection acquisition
+- Implement graceful error handling for connection failures
 
 ## Implementation Guide
 
-### Step 1: Create New Rust Project
+### Step 1: Install SQLx CLI
 ```bash
-cargo new rust-basic-api --bin
-cd rust-basic-api
+cargo install sqlx-cli --no-default-features --features postgres
 ```
 
-### Step 2: Configure Dependencies
-Replace the contents of `Cargo.toml` with the dependency list above.
+### Step 2: Create Migrations Directory
+```bash
+mkdir migrations
+```
 
-### Step 3: Implement Configuration Module
-Create `src/config.rs` with environment-based configuration:
+### Step 3: Create Initial Migration
+Create `migrations/001_initial_schema.sql`:
+
+```sql
+-- Main users table
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Performance indexes
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created_at ON users(created_at DESC);
+
+-- Add trigger for updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE
+    ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
+
+### Step 4: Implement Database Connection Pool
+Update `src/repository/mod.rs`:
 
 ```rust
-use dotenv::dotenv;
-use std::env;
+use sqlx::postgres::{PgPool, PgPoolOptions};
+use std::time::Duration;
 
-#[derive(Debug, Clone)]
-pub struct Config {
-    pub database_url: String,
-    pub server_port: u16,
+pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    PgPoolOptions::new()
+        .max_connections(10)
+        .min_connections(2)
+        .acquire_timeout(Duration::from_secs(3))
+        .idle_timeout(Duration::from_secs(600))
+        .max_lifetime(Duration::from_secs(1800))
+        .connect(database_url)
+        .await
 }
 
-impl Config {
-    pub fn from_env() -> Result<Self, env::VarError> {
-        dotenv().ok();
+#[cfg(test)]
+pub mod test_utils;
+```
+
+### Step 5: Add Test Utilities
+Create `src/repository/test_utils.rs`:
+
+```rust
+use sqlx::{PgPool, Postgres, Transaction};
+use std::sync::Once;
+
+static INIT: Once = Once::new();
+
+pub async fn setup_test_database() -> PgPool {
+    INIT.call_once(|| {
+        dotenv::from_filename(".env.test").ok();
+    });
+    
+    let database_url = std::env::var("DATABASE_URL")
+        .expect("DATABASE_URL must be set in .env.test");
         
-        let database_url = env::var("DATABASE_URL")?;
-        let server_port = env::var("SERVER_PORT")
-            .unwrap_or_else(|_| "3000".to_string())
-            .parse()
-            .unwrap_or(3000);
-            
-        Ok(Config {
-            database_url,
-            server_port,
-        })
-    }
+    let pool = super::create_pool(&database_url).await
+        .expect("Failed to create test database pool");
+    
+    // Run migrations
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations");
+    
+    pool
+}
+
+pub async fn transaction<'a>(pool: &'a PgPool) -> Transaction<'a, Postgres> {
+    pool.begin().await
+        .expect("Failed to begin transaction")
+}
+
+pub async fn cleanup_database(pool: &PgPool) {
+    sqlx::query!("TRUNCATE TABLE users RESTART IDENTITY CASCADE")
+        .execute(pool)
+        .await
+        .expect("Failed to cleanup database");
 }
 ```
 
-### Step 4: Implement Main Application
-Create `src/main.rs` with basic server setup:
+### Step 6: Update Main Application
+Modify `src/main.rs` to include database initialization:
 
 ```rust
-mod config;
-mod error;
-mod models;
-mod routes;
-mod repository;
+use sqlx::PgPool;
+use std::sync::Arc;
 
-use config::Config;
-use std::net::SocketAddr;
-use axum::Router;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    // ... existing initialization code ...
     
-    // Load configuration
-    let config = Config::from_env()?;
+    // Create database pool
+    let pool = repository::create_pool(&config.database_url)
+        .await
+        .context("Failed to create database pool")?;
     
-    // Build application router
+    // Run migrations
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .context("Failed to run database migrations")?;
+    
+    tracing::info!("Database connected and migrations completed");
+    
+    // Create app state
+    let state = AppState { pool };
+    
+    // Build application router with state
     let app = Router::new()
-        .route("/health", axum::routing::get(health_check));
+        .route("/health", axum::routing::get(health_check))
+        .with_state(state);
     
-    // Run the server
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
-    tracing::info!("Listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
-    
-    Ok(())
-}
-
-async fn health_check() -> &'static str {
-    "OK"
+    // ... rest of server setup ...
 }
 ```
 
-### Step 5: Create Module Placeholders
-Create empty module files:
-- `src/error.rs`
-- `src/models/mod.rs`
-- `src/routes/mod.rs`
-- `src/repository/mod.rs`
+### Step 7: Create Test Environment Configuration
+Create `.env.test`:
 
-### Step 6: Docker Configuration
-Create `Dockerfile`:
-
-```dockerfile
-FROM rust:1.70 as builder
-WORKDIR /app
-COPY Cargo.* ./
-COPY src ./src
-RUN cargo build --release
-
-FROM debian:bullseye-slim
-WORKDIR /app
-COPY --from=builder /app/target/release/rust-basic-api /app/
-EXPOSE 3000
-CMD ["./rust-basic-api"]
+```bash
+DATABASE_URL=__AUTO_GENERATED__
+TEST_DATABASE_URL=__AUTO_GENERATED__
+DATABASE_USER=<test_user>
+DATABASE_PASSWORD=<test_password>
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=test_db
+SERVER_PORT=3001
+RUST_LOG=debug
 ```
 
-### Step 7: Environment Configuration
-Create `.env.example`:
+## Database Operations
 
+### Running Migrations Manually
+```bash
+# Run pending migrations
+sqlx migrate run
+
+# Revert last migration
+sqlx migrate revert
+
+# Show migration info
+sqlx migrate info
 ```
-DATABASE_URL=postgresql://user:password@your-database-host:5432/your-database
-SERVER_PORT=3000
-RUST_LOG=info
+
+### Creating New Migrations
+```bash
+# Create a new migration
+sqlx migrate add <migration_name>
+```
+
+## Testing Strategy
+
+### Integration Tests
+Create `tests/database_integration.rs`:
+
+```rust
+use sqlx::PgPool;
+
+#[sqlx::test]
+async fn test_database_schema(pool: PgPool) {
+    // Check if users table exists
+    let result = sqlx::query!(
+        "SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = 'users'
+        )"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    
+    assert!(result.exists.unwrap());
+}
+
+#[sqlx::test]
+async fn test_indexes_exist(pool: PgPool) {
+    let indexes = sqlx::query!(
+        "SELECT indexname FROM pg_indexes 
+         WHERE tablename = 'users' 
+         AND indexname IN ('idx_users_email', 'idx_users_created_at')"
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    
+    assert_eq!(indexes.len(), 2);
+}
+
+#[sqlx::test]
+async fn test_user_insertion(pool: PgPool) {
+    let result = sqlx::query!(
+        "INSERT INTO users (name, email) 
+         VALUES ($1, $2) 
+         RETURNING id",
+        "Test User",
+        "test@example.com"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    
+    assert!(result.id > 0);
+}
 ```
 
 ## Dependencies and Prerequisites
-- Rust 1.70 or later
-- Cargo package manager
-- Docker (optional for containerization)
-- Access to a PostgreSQL database (via DATABASE_URL environment variable)
+- Task 1: Project Setup (must be completed first)
+- PostgreSQL 12+ installed and running
+- SQLx CLI tool installed
+- Database created and accessible
 
 ## Related Tasks
-- Task 2: Database Setup (depends on this task)
 - Task 3: API Server Implementation (depends on this task)
-- Task 4: User Authentication (depends on this task)
+- Task 4: User Management API (depends on this task)
+- Task 5: Data Validation (uses this schema)

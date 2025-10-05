@@ -19,9 +19,18 @@ async fn main() -> anyhow::Result<()> {
     start_application(shutdown_signal(async { tokio::signal::ctrl_c().await })).await
 }
 
-fn build_application(config: &Config) -> anyhow::Result<(SocketAddr, Router)> {
+async fn build_application(config: &Config) -> anyhow::Result<(SocketAddr, Router)> {
     let db_pool = create_pool(&config.database_url)
+        .await
         .context("failed to initialize database connection pool")?;
+
+    sqlx::migrate!()
+        .run(&db_pool)
+        .await
+        .context("failed to run database migrations")?;
+
+    tracing::info!("Database connected and migrations completed");
+
     let state = AppState::new(db_pool);
     let router = routes::create_router(state);
 
@@ -34,8 +43,9 @@ where
     F: Future<Output = ()> + Send + 'static,
 {
     let config = Config::from_env().context("failed to load configuration")?;
-    let (address, router) =
-        build_application(&config).context("failed to build application components")?;
+    let (address, router) = build_application(&config)
+        .await
+        .context("failed to build application components")?;
     tracing::info!(%address, "HTTP server listening");
 
     run_server(address, router, shutdown).await
@@ -75,51 +85,73 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::database_url_from_env;
+    use crate::repository::test_utils;
     use axum::{body::Body, http::Request, http::StatusCode};
     use serial_test::serial;
     use std::{env, io::Error, time::Duration};
     use tokio::{sync::oneshot, time::sleep};
     use tower::ServiceExt;
 
-    struct EnvGuard;
+    struct EnvGuard {
+        previous: Vec<(String, Option<std::ffi::OsString>)>,
+    }
 
     impl EnvGuard {
-        fn new(database_url: &str, port: &str) -> Self {
-            env::set_var("DATABASE_URL", database_url);
-            env::set_var("SERVER_PORT", port);
-            Self
+        fn new(vars: &[(String, String)]) -> Self {
+            let mut previous = Vec::with_capacity(vars.len());
+
+            for (key, value) in vars {
+                previous.push((key.clone(), env::var_os(key)));
+                env::set_var(key, value);
+            }
+
+            Self { previous }
         }
     }
 
     impl Drop for EnvGuard {
         fn drop(&mut self) {
-            env::remove_var("DATABASE_URL");
-            env::remove_var("SERVER_PORT");
+            for (key, value) in self.previous.drain(..) {
+                if let Some(existing) = value {
+                    env::set_var(key, existing);
+                } else {
+                    env::remove_var(key);
+                }
+            }
         }
     }
 
-    fn build_database_url() -> String {
-        format!(
-            "{scheme}://{user}:{pass}@{host}:{port}/{db}",
-            scheme = "postgres",
-            user = "postgres",
-            pass = "postgres",
-            host = "localhost",
-            port = 5432,
-            db = "postgres"
-        )
+    fn load_test_database_url() -> String {
+        test_utils::ensure_test_env();
+        database_url_from_env()
+            .expect("configure TEST_DATABASE_URL, DATABASE_URL, or component variables for tests")
     }
 
     #[tokio::test]
     #[serial]
     async fn test_build_application_produces_router_and_address() {
-        let database_url = build_database_url();
-        let _guard = EnvGuard::new(&database_url, "3030");
+        let database_url = load_test_database_url();
+        let port = 3030u16;
+        let _guard = EnvGuard::new(&[
+            ("DATABASE_URL".to_string(), database_url.clone()),
+            ("SERVER_PORT".to_string(), port.to_string()),
+        ]);
+
+        let pool = test_utils::setup_test_database()
+            .await
+            .expect("test database should initialize");
+        test_utils::cleanup_database(&pool)
+            .await
+            .expect("cleanup should succeed");
+
         init_tracing();
         let config = Config::from_env().expect("config should load");
-        let (address, router) = build_application(&config).expect("application builds");
+        let (address, router) = build_application(&config)
+            .await
+            .expect("application builds");
 
-        assert_eq!(address.port(), 3030);
+        assert_eq!(address.port(), port);
 
         let response = router
             .clone()
@@ -138,9 +170,12 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_build_application_rejects_invalid_database_url() {
-        let _guard = EnvGuard::new("invalid-url", "3031");
+        let _guard = EnvGuard::new(&[
+            ("DATABASE_URL".to_string(), "invalid-url".to_string()),
+            ("SERVER_PORT".to_string(), "3031".to_string()),
+        ]);
         let config = Config::from_env().expect("config should load");
-        let result = build_application(&config);
+        let result = build_application(&config).await;
 
         assert!(result.is_err());
     }
@@ -165,8 +200,11 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_start_application_starts_and_stops() {
-        let database_url = build_database_url();
-        let _guard = EnvGuard::new(&database_url, "0");
+        let database_url = load_test_database_url();
+        let _guard = EnvGuard::new(&[
+            ("DATABASE_URL".to_string(), database_url),
+            ("SERVER_PORT".to_string(), "0".to_string()),
+        ]);
         init_tracing();
 
         let (trigger, receiver) = oneshot::channel();
