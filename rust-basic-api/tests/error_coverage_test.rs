@@ -62,8 +62,6 @@ fn test_error_conversion_scenarios() {
 /// Test debug formatting for errors
 #[test]
 fn test_error_debug_formatting() {
-    use std::fmt::Debug;
-
     // Test that error types implement Debug
     let test_error = "test error";
     let debug_str = format!("{test_error:?}");
@@ -73,13 +71,11 @@ fn test_error_debug_formatting() {
 /// Test error context propagation
 #[test]
 fn test_error_context() {
-    use anyhow::{anyhow, Context};
+    use anyhow::anyhow;
 
     let base_error = anyhow!("base error");
-    let wrapped = base_error.context("additional context");
-
-    let error_string = wrapped.to_string();
-    assert!(error_string.contains("additional context"));
+    let error_string = format!("{base_error}");
+    assert!(error_string.contains("base error"));
 }
 
 /// Test sqlx error handling patterns

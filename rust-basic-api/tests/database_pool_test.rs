@@ -22,7 +22,7 @@ fn test_database_url_components() {
 
     // Test URL structure
     assert!(url.contains("://"));
-    assert!(url.contains("@"));
+    assert!(url.contains('@'));
     assert!(url.contains(":5432"));
     assert!(url.contains("/database"));
 
@@ -42,7 +42,7 @@ fn test_valid_database_url_formats() {
 
     for url in valid_urls {
         assert!(url.starts_with("postgresql://"));
-        assert!(url.contains("@"));
+        assert!(url.contains('@'));
         assert!(url.contains(":5432"));
     }
 }
@@ -137,7 +137,7 @@ fn test_database_url_encoding() {
     assert!(url_with_special_chars.contains("%40")); // Encoded @
 
     let simple_url = "postgresql://user:pass@localhost:5432/db";
-    assert!(!simple_url.contains("%")); // No encoding needed
+    assert!(!simple_url.contains('%')); // No encoding needed
 }
 
 /// Test host variations

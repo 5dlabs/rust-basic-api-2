@@ -126,8 +126,8 @@ async fn test_shutdown_signal_concept() {
 fn test_socket_address_format() {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 3000);
-    assert_eq!(addr.ip(), IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)));
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 3000);
+    assert_eq!(addr.ip(), IpAddr::V4(Ipv4Addr::UNSPECIFIED));
     assert_eq!(addr.port(), 3000);
     assert!(addr.is_ipv4());
 }
@@ -152,8 +152,7 @@ fn test_env_var_fallback() {
 
     let value = env::var("TEST_VAR")
         .ok()
-        .map(|v| v.parse::<u16>().ok())
-        .flatten()
+        .and_then(|v| v.parse::<u16>().ok())
         .unwrap_or(3000);
 
     assert_eq!(value, 3000);
