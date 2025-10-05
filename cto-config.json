@@ -49,9 +49,9 @@
       "continueSession": false,
       "overwriteMemory": false,
       "maxRetries": 10,
-      "implementationMaxRetries": 5,
-      "qualityMaxRetries": 3,
-      "testingMaxRetries": 3
+      "implementationMaxRetries": 6,
+      "qualityMaxRetries": 4,
+      "testingMaxRetries": 4
     },
     "docs_ingest": {
       "model": "claude-sonnet-4-5-20250929",
