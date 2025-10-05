@@ -1,0 +1,126 @@
+{
+  "version": "1.0",
+  "defaults": {
+    "docs": {
+      "model": "claude-opus-4-1-20250805",
+      "githubApp": "5DLabs-Morgan",
+      "includeCodebase": false,
+      "sourceBranch": "main"
+    },
+    "code": {
+      "repository": "5dlabs/rust-basic-api",
+      "service": "rust-basic-api",
+      "docsRepository": "5dlabs/rust-basic-api",
+      "docsProjectDirectory": "docs",
+      "workingDirectory": ".",
+      "model": "gpt-5-codex",
+      "cli": "codex",
+      "githubApp": "5DLabs-Rex",
+      "continueSession": false,
+      "overwriteMemory": false,
+      "maxRetries": 10
+    },
+    "intake": {
+      "githubApp": "5DLabs-Morgan",
+      "primary": {
+        "model": "opus",
+        "provider": "claude-code"
+      },
+      "research": {
+        "model": "opus",
+        "provider": "claude-code"
+      },
+      "fallback": {
+        "model": "gpt-5",
+        "provider": "openai"
+      }
+    },
+    "play": {
+      "repository": "5dlabs/rust-basic-api-2",
+      "service": "rust-basic-api-2",
+      "docsRepository": "5dlabs/rust-basic-api-2",
+      "docsProjectDirectory": "docs",
+      "workingDirectory": ".",
+      "model": "gpt-5-codex",
+      "cli": "factory",
+      "implementationAgent": "5DLabs-Rex",
+      "qualityAgent": "5DLabs-Cleo",
+      "testingAgent": "5DLabs-Tess",
+      "continueSession": false,
+      "overwriteMemory": false,
+      "maxRetries": 10,
+      "implementationMaxRetries": 3,
+      "qualityMaxRetries": 2,
+      "testingMaxRetries": 2
+    },
+    "docs_ingest": {
+      "model": "claude-sonnet-4-5-20250929",
+      "docServerUrl": "http://doc-server-agent-docs-server.mcp.svc.cluster.local:80"
+    }
+  },
+  "agents": {
+    "morgan": {
+      "githubApp": "5DLabs-Morgan",
+      "cli": "claude",
+      "model": "claude-opus-4-1-20250805",
+      "tools": {
+        "remote": [
+          "brave_search_brave_web_search",
+          "context7_get_library_docs",
+          "rustdocs_query_rust_docs"
+        ],
+        "localServers": {}
+      }
+    },
+    "rex": {
+      "githubApp": "5DLabs-Rex",
+      "cli": "factory",
+      "model": "gpt-5-codex",
+      "tools": {
+        "remote": [
+          "brave_search_brave_web_search",
+          "context7_get_library_docs",
+          "rustdocs_query_rust_docs",
+          "agent_docs_codex_query",
+          "agent_docs_cursor_query"
+        ],
+        "localServers": {}
+      }
+    },
+    "cleo": {
+      "githubApp": "5DLabs-Cleo",
+      "cli": "claude",
+      "model": "claude-sonnet-4-5-20250929",
+      "tools": {
+        "remote": [
+          "brave_search_brave_web_search",
+          "context7_get_library_docs",
+          "rustdocs_query_rust_docs",
+          "agent_docs_codex_query",
+          "agent_docs_cursor_query"
+        ],
+        "localServers": {}
+      }
+    },
+    "tess": {
+      "githubApp": "5DLabs-Tess",
+      "cli": "claude",
+      "model": "claude-sonnet-4-5-20250929",
+      "tools": {
+        "remote": [
+          "brave_search_brave_web_search",
+          "context7_get_library_docs",
+          "rustdocs_query_rust_docs",
+          "agent_docs_codex_query",
+          "agent_docs_cursor_query",
+          "kubernetes_helmInstall",
+          "kubernetes_helmRollback",
+          "kubernetes_getPodsLogs",
+          "kubernetes_listResources",
+          "kubernetes_getEvents"
+        ],
+        "localServers": {}
+      }
+    }
+  }
+}
