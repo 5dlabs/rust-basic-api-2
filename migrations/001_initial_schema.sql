@@ -20,8 +20,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger to update updated_at before every row update
-CREATE TRIGGER trg_users_set_updated_at
+CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
