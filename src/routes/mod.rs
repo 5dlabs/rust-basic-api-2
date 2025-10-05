@@ -1,4 +1,4 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{extract::State, routing::get, Router};
 use sqlx::PgPool;
 use tracing::instrument;
 
@@ -12,12 +12,12 @@ pub fn router(pool: PgPool) -> Router {
 }
 
 #[instrument(name = "health_check", skip(pool))]
-async fn health_check(State(pool): State<PgPool>) -> Json<HealthResponse> {
+async fn health_check(State(pool): State<PgPool>) -> &'static str {
     if pool.is_closed() {
         tracing::warn!("database connection pool is closed");
     }
 
-    Json(HealthResponse::default())
+    HealthResponse::healthy().status
 }
 
 #[cfg(test)]
@@ -54,9 +54,8 @@ mod tests {
         let body = to_bytes(response.into_body())
             .await
             .expect("body should be readable");
-        let payload: serde_json::Value =
-            serde_json::from_slice(&body).expect("response should be valid JSON");
+        let payload = std::str::from_utf8(&body).expect("response should be valid UTF-8");
 
-        assert_eq!(payload, serde_json::json!({ "status": "OK" }));
+        assert_eq!(payload, "OK");
     }
 }
