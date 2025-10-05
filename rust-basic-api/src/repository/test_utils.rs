@@ -122,6 +122,7 @@ pub async fn cleanup_database(pool: &PgPool) -> Result<()> {
 mod tests {
     use super::*;
     use serial_test::serial;
+    use sqlx::Row;
     use std::ffi::OsString;
     use tempfile::NamedTempFile;
 
@@ -184,5 +185,64 @@ mod tests {
         load_env_if_present(temp.path().to_str().expect("path is valid UTF-8"));
 
         assert_eq!(std::env::var("TEST_UTILS_CHARLIE").unwrap(), "original");
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_setup_test_database_runs_migrations() {
+        let pool = setup_test_database()
+            .await
+            .expect("setup_test_database should run migrations");
+
+        let row = sqlx::query(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users') AS present",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("information_schema query should succeed");
+
+        assert!(row.get::<bool, _>("present"), "users table should exist");
+
+        cleanup_database(&pool)
+            .await
+            .expect("cleanup_database should truncate tables");
+
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_transaction_helper_rolls_back_changes() {
+        let pool = setup_test_database()
+            .await
+            .expect("setup_test_database should run migrations");
+
+        {
+            let mut tx = transaction(&pool)
+                .await
+                .expect("transaction helper should start transaction");
+
+            sqlx::query("INSERT INTO users (name, email) VALUES ($1, $2)")
+                .bind("Tx User")
+                .bind("tx-user@example.com")
+                .execute(&mut tx)
+                .await
+                .expect("insert within transaction should succeed");
+            // Transaction dropped without commit to trigger rollback.
+        }
+
+        let count: i64 = sqlx::query("SELECT COUNT(*) AS count FROM users")
+            .fetch_one(&pool)
+            .await
+            .expect("count query should succeed")
+            .get("count");
+
+        assert_eq!(count, 0, "transaction drop should roll back changes");
+
+        cleanup_database(&pool)
+            .await
+            .expect("cleanup_database should truncate tables");
+
+        pool.close().await;
     }
 }

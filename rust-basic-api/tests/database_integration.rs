@@ -239,7 +239,8 @@ async fn test_connection_pool_handles_multiple_queries() {
     let pool = setup_pool().await;
 
     let mut handles = Vec::new();
-    for _ in 0..5 {
+    // Spawn more than ten concurrent tasks to validate pool can sustain required load.
+    for _ in 0..12 {
         let pool_clone = pool.clone();
         handles.push(tokio::spawn(async move {
             sqlx::query("SELECT 1")

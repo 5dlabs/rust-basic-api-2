@@ -25,3 +25,4 @@ target
 
 /target
 **/coverage-summary.json
+**/coverage.lcov
