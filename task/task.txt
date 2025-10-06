@@ -1,0 +1,107 @@
+# Task ID: 1
+# Title: Project Setup and Configuration
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Initialize the Rust project with Cargo, set up the project structure, and configure dependencies
+# Details:
+1. Create a new Rust project using `cargo new rust-basic-api --bin`
+2. Configure Cargo.toml with required dependencies:
+   - axum = "0.6.0" (or latest)
+   - tokio = { version = "1", features = ["full"] }
+   - serde = { version = "1", features = ["derive"] }
+   - serde_json = "1"
+   - sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "chrono", "json"] }
+   - tracing = "0.1"
+   - tracing-subscriber = "0.3"
+   - dotenv = "0.15"
+   - anyhow = "1.0"
+   - thiserror = "1.0"
+3. Create basic project structure:
+   - src/
+     - main.rs
+     - config.rs
+     - error.rs
+     - models/
+     - routes/
+     - repository/
+4. Implement configuration management in config.rs:
+```rust
+use dotenv::dotenv;
+use std::env;
+
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub database_url: String,
+    pub server_port: u16,
+}
+
+impl Config {
+    pub fn from_env() -> Result<Self, env::VarError> {
+        dotenv().ok();
+        
+        let database_url = env::var("DATABASE_URL")?;
+        let server_port = env::var("SERVER_PORT")
+            .unwrap_or_else(|_| "3000".to_string())
+            .parse()
+            .unwrap_or(3000);
+            
+        Ok(Config {
+            database_url,
+            server_port,
+        })
+    }
+}
+```
+5. Create a basic main.rs with server setup:
+```rust
+mod config;
+mod error;
+mod models;
+mod routes;
+mod repository;
+
+use config::Config;
+use std::net::SocketAddr;
+use axum::Router;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Initialize tracing
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
+        ))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+    
+    // Load configuration
+    let config = Config::from_env()?;
+    
+    // Build application router
+    let app = Router::new()
+        .route("/health", axum::routing::get(health_check));
+    
+    // Run the server
+    let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
+    tracing::info!("Listening on {}", addr);
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await?;
+    
+    Ok(())
+}
+
+async fn health_check() -> &'static str {
+    "OK"
+}
+```
+6. Create a Dockerfile as specified in the PRD
+
+# Test Strategy:
+1. Verify project builds with `cargo build`
+2. Run the server locally and test the health endpoint with `curl http://localhost:3000/health`
+3. Verify Docker setup works with `docker run -p 3000:3000 -e DATABASE_URL=your_database_url rust-basic-api` and test the health endpoint
+4. Check that environment variables are correctly loaded by setting test values
+5. Verify logging is working by checking console output
