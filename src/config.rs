@@ -59,6 +59,7 @@ mod tests {
     use std::env;
 
     #[test]
+    #[serial]
     fn test_config_from_env_with_valid_values() {
         // Clear first
         env::remove_var("DATABASE_URL");
