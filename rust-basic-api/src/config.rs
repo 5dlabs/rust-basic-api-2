@@ -16,6 +16,10 @@ pub struct Config {
 impl Config {
     /// Load configuration values from environment variables, applying sensible defaults
     /// where appropriate.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `DATABASE_URL` is not set or if `SERVER_PORT` is set but invalid.
     pub fn from_env() -> Result<Self> {
         dotenv::dotenv().ok();
 
@@ -106,8 +110,7 @@ mod tests {
         let error_msg = result.unwrap_err().to_string();
         assert!(
             error_msg.contains("u16") || error_msg.contains("parse"),
-            "Expected error about port parsing, got: {}",
-            error_msg
+            "Expected error about port parsing, got: {error_msg}"
         );
 
         env::remove_var("DATABASE_URL");
@@ -163,7 +166,7 @@ mod tests {
         env::set_var("SERVER_PORT", "3000");
 
         let config = Config::from_env().expect("Failed to load config");
-        let debug_str = format!("{:?}", config);
+        let debug_str = format!("{config:?}");
 
         assert!(debug_str.contains("Config"));
         assert!(debug_str.contains("database_url"));

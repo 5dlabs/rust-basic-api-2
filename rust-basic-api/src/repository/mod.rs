@@ -15,6 +15,10 @@ pub struct Database {
 
 impl Database {
     /// Initialise a `PostgreSQL` connection pool using the provided configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if environment variables are invalid or pool creation fails.
     pub fn connect(config: &Config) -> Result<Self> {
         let max_connections = read_env_u32("DATABASE_MAX_CONNECTIONS")?.unwrap_or(5);
         let acquire_timeout_secs = read_env_u64("DATABASE_ACQUIRE_TIMEOUT_SECS")?.unwrap_or(5);
@@ -29,6 +33,10 @@ impl Database {
     }
 
     /// Execute a lightweight query to verify database connectivity.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn is_healthy(&self) -> std::result::Result<(), sqlx::Error> {
         sqlx::query("SELECT 1")
             .execute(&self.pool)
@@ -122,7 +130,7 @@ mod tests {
     fn test_read_env_u64_valid() {
         env::set_var("TEST_U64", "123456");
         let result = read_env_u64("TEST_U64").unwrap();
-        assert_eq!(result, Some(123456));
+        assert_eq!(result, Some(123_456));
         env::remove_var("TEST_U64");
     }
 
@@ -158,7 +166,7 @@ mod tests {
     fn test_read_env_u64_large_value() {
         env::set_var("TEST_U64_LARGE", "18446744073709551615"); // u64::MAX
         let result = read_env_u64("TEST_U64_LARGE").unwrap();
-        assert_eq!(result, Some(18446744073709551615));
+        assert_eq!(result, Some(18_446_744_073_709_551_615));
         env::remove_var("TEST_U64_LARGE");
     }
 }

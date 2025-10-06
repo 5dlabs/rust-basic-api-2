@@ -1,4 +1,3 @@
-use axum::http::StatusCode;
 use rust_basic_api::routes::{create_router, AppState};
 use rust_basic_api::{config::Config, repository::Database};
 
@@ -15,7 +14,7 @@ async fn test_health_endpoint_without_database() {
     let app = create_router(AppState { database });
 
     // Verify the router was created successfully
-    assert!(format!("{:?}", app).contains("Router"));
+    assert!(format!("{app:?}").contains("Router"));
 
     std::env::remove_var("DATABASE_URL");
     std::env::remove_var("SERVER_PORT");
@@ -31,7 +30,7 @@ async fn test_router_creation() {
     let router = create_router(AppState { database });
 
     // Test that router is created without panics
-    let debug_output = format!("{:?}", router);
+    let debug_output = format!("{router:?}");
     assert!(!debug_output.is_empty());
 
     std::env::remove_var("DATABASE_URL");

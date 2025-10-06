@@ -76,7 +76,7 @@ mod tests {
 
         match app_error {
             AppError::Internal(_) => {}
-            _ => panic!("Expected Internal error variant"),
+            AppError::Database(_) => panic!("Expected Internal error variant"),
         }
     }
 
@@ -87,7 +87,7 @@ mod tests {
 
         match app_error {
             AppError::Database(_) => {}
-            _ => panic!("Expected Database error variant"),
+            AppError::Internal(_) => panic!("Expected Database error variant"),
         }
     }
 
@@ -111,7 +111,9 @@ mod tests {
     fn test_app_result_ok() {
         let result: AppResult<i32> = Ok(42);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 42);
+        if let Ok(value) = result {
+            assert_eq!(value, 42);
+        }
     }
 
     #[test]
@@ -133,7 +135,7 @@ mod tests {
     #[test]
     fn test_app_error_debug() {
         let error = AppError::Internal(anyhow!("debug test"));
-        let debug_str = format!("{:?}", error);
+        let debug_str = format!("{error:?}");
         assert!(debug_str.contains("Internal"));
     }
 }
