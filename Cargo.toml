@@ -26,3 +26,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [dev-dependencies]
 tower = "0.4"
 hyper = "0.14"
+serial_test = "3.0"

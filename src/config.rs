@@ -55,6 +55,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::env;
 
     #[test]
@@ -82,6 +83,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_config_missing_database_url() {
         // Ensure DATABASE_URL is definitely not set
         env::remove_var("DATABASE_URL");
@@ -107,6 +109,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_config_default_server_port() {
         // Clear all potentially interfering env vars first
         env::remove_var("SERVER_PORT");
@@ -124,6 +127,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_config_invalid_server_port_uses_default() {
         env::remove_var("SERVER_PORT");
         env::set_var("DATABASE_URL", "postgresql://localhost/testdb_invalid_port");
@@ -138,6 +142,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_config_port_out_of_range_uses_default() {
         env::remove_var("SERVER_PORT");
         env::set_var("DATABASE_URL", "postgresql://localhost/testdb_out_of_range");
@@ -152,6 +157,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_config_database_url_from_env_not_empty() {
         // Clear first to ensure clean state
         env::remove_var("DATABASE_URL");

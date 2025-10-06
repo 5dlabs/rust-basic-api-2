@@ -60,8 +60,10 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_init_tracing_multiple_calls() {
         // First call should succeed
         init_tracing();
@@ -129,6 +131,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_tracing_initialization_with_env_filter() {
         // Set RUST_LOG environment variable
         std::env::set_var("RUST_LOG", "debug");
@@ -137,6 +140,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_env_filter_defaults_to_info() {
         std::env::remove_var("RUST_LOG");
         let env_filter =
