@@ -59,10 +59,7 @@ mod tests {
 
         let config = Config::from_env().expect("Failed to load config");
 
-        assert_eq!(
-            config.database_url,
-            TEST_DATABASE_URL
-        );
+        assert_eq!(config.database_url, TEST_DATABASE_URL);
         assert_eq!(config.server_port, 8080);
 
         env::remove_var("DATABASE_URL");
