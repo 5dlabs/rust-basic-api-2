@@ -100,7 +100,9 @@ mod tests {
             Some(val) => env::set_var("DATABASE_URL", val),
             None => env::remove_var("DATABASE_URL"),
         }
-        if let Some(val) = existing_port { env::set_var("SERVER_PORT", val) }
+        if let Some(val) = existing_port {
+            env::set_var("SERVER_PORT", val)
+        }
     }
 
     #[test]
