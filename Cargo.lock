@@ -1178,6 +1178,7 @@ dependencies = [
  "axum",
  "dotenv",
  "hyper",
+ "libc",
  "serde",
  "serde_json",
  "serial_test",

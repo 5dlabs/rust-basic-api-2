@@ -1,24 +1,72 @@
 use axum::{
     body::Body,
     http::{Request, StatusCode},
+    Router,
 };
+use sqlx::PgPool;
 use std::sync::Arc;
 use tower::ServiceExt;
 
-// Helper to create test config
-fn create_test_config() -> Arc<rust_basic_api::config::Config> {
-    Arc::new(rust_basic_api::config::Config {
-        database_url: "postgresql://test:test@localhost/testdb".to_string(),
-        server_port: 3000,
+fn default_database_url() -> String {
+    let scheme = "postgresql";
+    let user = "postgres";
+    let password = "postgres";
+    let host = "localhost";
+    let port = 15432;
+    let database = "rust_basic_api_test";
+
+    format!("{scheme}://{user}:{password}@{host}:{port}/{database}")
+}
+
+fn database_url_from_env() -> String {
+    std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        let fallback = default_database_url();
+        std::env::set_var("DATABASE_URL", &fallback);
+        fallback
     })
+}
+
+async fn create_app() -> (Router, rust_basic_api::state::SharedAppState, PgPool) {
+    dotenv::from_filename(".env.test").ok();
+
+    let database_url = database_url_from_env();
+
+    let pool = rust_basic_api::repository::create_pool(&database_url)
+        .await
+        .expect("Failed to create test database pool");
+
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations in integration tests");
+
+    let config = Arc::new(rust_basic_api::config::Config {
+        database_url,
+        server_port: 3000,
+    });
+
+    let state = Arc::new(rust_basic_api::state::AppState::new(config, pool.clone()));
+
+    (
+        rust_basic_api::routes::router().with_state(state.clone()),
+        state,
+        pool,
+    )
+}
+
+async fn cleanup(pool: &PgPool) {
+    sqlx::query("TRUNCATE TABLE users RESTART IDENTITY CASCADE")
+        .execute(pool)
+        .await
+        .expect("Failed to clean up users table");
 }
 
 #[tokio::test]
 async fn test_health_endpoint_returns_ok() {
-    let config = create_test_config();
-    let app = rust_basic_api::routes::router().layer(axum::extract::Extension(config));
+    let (app, _state, pool) = create_app().await;
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .uri("/health")
@@ -33,15 +81,21 @@ async fn test_health_endpoint_returns_ok() {
     let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
     assert_eq!(body_str, "OK");
+
+    cleanup(&pool).await;
 }
 
 #[tokio::test]
 async fn test_health_endpoint_with_empty_database_url() {
+    let (_router, _state, pool) = create_app().await;
+
     let config = Arc::new(rust_basic_api::config::Config {
         database_url: String::new(),
         server_port: 3000,
     });
-    let app = rust_basic_api::routes::router().layer(axum::extract::Extension(config));
+
+    let state = Arc::new(rust_basic_api::state::AppState::new(config, pool.clone()));
+    let app = rust_basic_api::routes::router().with_state(state);
 
     let response = app
         .oneshot(
@@ -54,15 +108,21 @@ async fn test_health_endpoint_with_empty_database_url() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+
+    cleanup(&pool).await;
 }
 
 #[tokio::test]
 async fn test_health_endpoint_with_different_ports() {
+    let (_router, _state, pool) = create_app().await;
+
     let config = Arc::new(rust_basic_api::config::Config {
-        database_url: "postgresql://localhost/testdb".to_string(),
+        database_url: database_url_from_env(),
         server_port: 8080,
     });
-    let app = rust_basic_api::routes::router().layer(axum::extract::Extension(config));
+
+    let state = Arc::new(rust_basic_api::state::AppState::new(config, pool.clone()));
+    let app = rust_basic_api::routes::router().with_state(state);
 
     let response = app
         .oneshot(
@@ -75,16 +135,17 @@ async fn test_health_endpoint_with_different_ports() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+
+    cleanup(&pool).await;
 }
 
 #[tokio::test]
 async fn test_health_endpoint_multiple_requests() {
-    let config = create_test_config();
+    let (app, _state, pool) = create_app().await;
 
     for _ in 0..10 {
-        let app = rust_basic_api::routes::router().layer(axum::extract::Extension(config.clone()));
-
         let response = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .uri("/health")
@@ -96,14 +157,16 @@ async fn test_health_endpoint_multiple_requests() {
 
         assert_eq!(response.status(), StatusCode::OK);
     }
+
+    cleanup(&pool).await;
 }
 
 #[tokio::test]
 async fn test_nonexistent_route_returns_404() {
-    let config = create_test_config();
-    let app = rust_basic_api::routes::router().layer(axum::extract::Extension(config));
+    let (app, _state, pool) = create_app().await;
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .uri("/nonexistent")
@@ -114,14 +177,16 @@ async fn test_nonexistent_route_returns_404() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    cleanup(&pool).await;
 }
 
 #[tokio::test]
 async fn test_health_endpoint_head_method() {
-    let config = create_test_config();
-    let app = rust_basic_api::routes::router().layer(axum::extract::Extension(config));
+    let (app, _state, pool) = create_app().await;
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("HEAD")
@@ -134,14 +199,16 @@ async fn test_health_endpoint_head_method() {
 
     // HEAD request to GET endpoint should still work with Axum
     assert_eq!(response.status(), StatusCode::OK);
+
+    cleanup(&pool).await;
 }
 
 #[tokio::test]
 async fn test_health_endpoint_post_method_not_allowed() {
-    let config = create_test_config();
-    let app = rust_basic_api::routes::router().layer(axum::extract::Extension(config));
+    let (app, _state, pool) = create_app().await;
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
@@ -153,13 +220,15 @@ async fn test_health_endpoint_post_method_not_allowed() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+    cleanup(&pool).await;
 }
 
 #[tokio::test]
 async fn test_router_cloneable() {
-    let router1 = rust_basic_api::routes::router();
+    let (router1, _state, pool) = create_app().await;
     let _router2 = router1.clone();
-    // If this compiles, router is cloneable
+    cleanup(&pool).await;
 }
 
 #[tokio::test]
