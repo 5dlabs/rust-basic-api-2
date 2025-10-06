@@ -49,17 +49,19 @@ mod tests {
     use serial_test::serial;
     use std::env;
 
+    const TEST_DATABASE_URL: &str = "postgresql://localhost:5432/test_db";
+
     #[test]
     #[serial]
     fn test_config_from_env_with_valid_values() {
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::set_var("SERVER_PORT", "8080");
 
         let config = Config::from_env().expect("Failed to load config");
 
         assert_eq!(
             config.database_url,
-            "postgresql://test:test@localhost:5432/test"
+            TEST_DATABASE_URL
         );
         assert_eq!(config.server_port, 8080);
 
@@ -70,15 +72,12 @@ mod tests {
     #[test]
     #[serial]
     fn test_config_from_env_default_port() {
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::remove_var("SERVER_PORT");
 
         let config = Config::from_env().expect("Failed to load config");
 
-        assert_eq!(
-            config.database_url,
-            "postgresql://test:test@localhost:5432/test"
-        );
+        assert_eq!(config.database_url, TEST_DATABASE_URL);
         assert_eq!(config.server_port, 3000);
 
         env::remove_var("DATABASE_URL");
@@ -101,7 +100,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_config_from_env_invalid_port() {
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::set_var("SERVER_PORT", "invalid");
 
         let result = Config::from_env();
@@ -120,7 +119,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_config_from_env_port_out_of_range() {
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::set_var("SERVER_PORT", "99999");
 
         let result = Config::from_env();
@@ -134,7 +133,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_config_from_env_port_zero() {
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::set_var("SERVER_PORT", "0");
 
         let config = Config::from_env().expect("Failed to load config");
@@ -148,7 +147,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_config_from_env_port_max_value() {
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::set_var("SERVER_PORT", "65535");
 
         let config = Config::from_env().expect("Failed to load config");
@@ -161,8 +160,33 @@ mod tests {
 
     #[test]
     #[serial]
+    #[cfg(unix)]
+    fn test_config_from_env_port_not_unicode() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
+
+        let os_value = OsString::from_vec(vec![0x80]);
+        env::set_var("SERVER_PORT", os_value);
+
+        let result = Config::from_env();
+
+        assert!(result.is_err());
+        let message = result.unwrap_err().to_string();
+        assert!(
+            message.contains("invalid UTF-8"),
+            "expected invalid UTF-8 error, got: {message}"
+        );
+
+        env::remove_var("DATABASE_URL");
+        env::remove_var("SERVER_PORT");
+    }
+
+    #[test]
+    #[serial]
     fn test_config_debug_impl() {
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::set_var("SERVER_PORT", "3000");
 
         let config = Config::from_env().expect("Failed to load config");
@@ -179,7 +203,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_config_clone_impl() {
-        env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
+        env::set_var("DATABASE_URL", TEST_DATABASE_URL);
         env::set_var("SERVER_PORT", "3000");
 
         let config = Config::from_env().expect("Failed to load config");

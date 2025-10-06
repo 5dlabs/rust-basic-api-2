@@ -1,56 +1,57 @@
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+};
 use rust_basic_api::routes::{create_router, AppState};
-use rust_basic_api::{config::Config, repository::Database};
+use rust_basic_api::{config::Config, repository::test_utils};
+use tower::ServiceExt;
 
 #[tokio::test]
-async fn test_health_endpoint_without_database() {
-    // This test verifies the router setup even though we can't connect to a real database
-    // The actual database connection is tested in the health check handler
-    std::env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
-    std::env::set_var("SERVER_PORT", "3000");
+async fn test_router_creation_with_real_pool() {
+    let pool = test_utils::setup_test_database().await;
 
-    let config = Config::from_env().expect("Failed to load config");
-    let database = Database::connect(&config).expect("Failed to connect to database");
+    let router = create_router(AppState { pool: pool.clone() });
 
-    let app = create_router(AppState { database });
-
-    // Verify the router was created successfully
-    assert!(format!("{app:?}").contains("Router"));
-
-    std::env::remove_var("DATABASE_URL");
-    std::env::remove_var("SERVER_PORT");
-}
-
-#[tokio::test]
-async fn test_router_creation() {
-    std::env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
-
-    let config = Config::from_env().expect("Failed to load config");
-    let database = Database::connect(&config).expect("Failed to connect");
-
-    let router = create_router(AppState { database });
-
-    // Test that router is created without panics
     let debug_output = format!("{router:?}");
     assert!(!debug_output.is_empty());
 
-    std::env::remove_var("DATABASE_URL");
+    test_utils::cleanup_database(&pool).await;
 }
 
 #[tokio::test]
 async fn test_app_state_clone() {
-    std::env::set_var("DATABASE_URL", "postgresql://test:test@localhost:5432/test");
+    let pool = test_utils::setup_test_database().await;
 
-    let config = Config::from_env().expect("Failed to load config");
-    let database = Database::connect(&config).expect("Failed to connect");
+    let state = AppState { pool: pool.clone() };
+    let cloned = state.clone();
+    cloned
+        .pool
+        .acquire()
+        .await
+        .expect("cloned state should provide usable pool");
 
-    let state = AppState {
-        database: database.clone(),
-    };
+    test_utils::cleanup_database(&pool).await;
+}
 
-    let _cloned = state.clone();
-    // If this compiles and runs, Clone is properly implemented
+#[tokio::test]
+async fn test_health_check_endpoint() {
+    let pool = test_utils::setup_test_database().await;
+    let router = create_router(AppState { pool: pool.clone() });
 
-    std::env::remove_var("DATABASE_URL");
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri("/health")
+                .method("GET")
+                .body(Body::empty())
+                .expect("failed to build request"),
+        )
+        .await
+        .expect("health check request should succeed");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    test_utils::cleanup_database(&pool).await;
 }
 
 #[test]

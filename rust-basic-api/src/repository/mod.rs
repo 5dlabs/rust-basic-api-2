@@ -2,46 +2,84 @@
 
 use std::{env, time::Duration};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
-use crate::config::Config;
+const DEFAULT_MAX_CONNECTIONS: u32 = 10;
+const DEFAULT_MIN_CONNECTIONS: u32 = 2;
+const DEFAULT_ACQUIRE_TIMEOUT_SECS: u64 = 3;
+const DEFAULT_IDLE_TIMEOUT_SECS: u64 = 600;
+const DEFAULT_MAX_LIFETIME_SECS: u64 = 1_800;
 
-/// Thin wrapper around the `SQLx` `PostgreSQL` connection pool.
-#[derive(Clone)]
-pub struct Database {
-    pool: PgPool,
-}
+/// Create a new asynchronous `PostgreSQL` connection pool using `SQLx`.
+///
+/// # Errors
+///
+/// Returns an error if the pool configuration is invalid or the database connection fails.
+pub async fn create_pool(database_url: &str) -> Result<PgPool> {
+    let settings = PoolSettings::from_env()?;
 
-impl Database {
-    /// Initialise a `PostgreSQL` connection pool using the provided configuration.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if environment variables are invalid or pool creation fails.
-    pub fn connect(config: &Config) -> Result<Self> {
-        let max_connections = read_env_u32("DATABASE_MAX_CONNECTIONS")?.unwrap_or(5);
-        let acquire_timeout_secs = read_env_u64("DATABASE_ACQUIRE_TIMEOUT_SECS")?.unwrap_or(5);
+    let mut options = PgPoolOptions::new()
+        .max_connections(settings.max_connections)
+        .min_connections(settings.min_connections)
+        .acquire_timeout(Duration::from_secs(settings.acquire_timeout_secs));
 
-        let pool = PgPoolOptions::new()
-            .max_connections(max_connections)
-            .acquire_timeout(Duration::from_secs(acquire_timeout_secs))
-            .connect_lazy(&config.database_url)
-            .context("failed to create PostgreSQL connection pool")?;
-
-        Ok(Self { pool })
+    if let Some(idle_timeout) = settings.idle_timeout_secs {
+        options = options.idle_timeout(Duration::from_secs(idle_timeout));
     }
 
-    /// Execute a lightweight query to verify database connectivity.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the database query fails.
-    pub async fn is_healthy(&self) -> std::result::Result<(), sqlx::Error> {
-        sqlx::query("SELECT 1")
-            .execute(&self.pool)
-            .await
-            .map(|_| ())
+    if let Some(max_lifetime) = settings.max_lifetime_secs {
+        options = options.max_lifetime(Duration::from_secs(max_lifetime));
+    }
+
+    options
+        .connect(database_url)
+        .await
+        .with_context(|| "failed to create PostgreSQL connection pool".to_string())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PoolSettings {
+    max_connections: u32,
+    min_connections: u32,
+    acquire_timeout_secs: u64,
+    idle_timeout_secs: Option<u64>,
+    max_lifetime_secs: Option<u64>,
+}
+
+impl PoolSettings {
+    fn from_env() -> Result<Self> {
+        let max_connections =
+            read_env_u32("DATABASE_MAX_CONNECTIONS")?.unwrap_or(DEFAULT_MAX_CONNECTIONS);
+        let min_connections =
+            read_env_u32("DATABASE_MIN_CONNECTIONS")?.unwrap_or(DEFAULT_MIN_CONNECTIONS);
+
+        if min_connections > max_connections {
+            bail!("DATABASE_MIN_CONNECTIONS cannot exceed DATABASE_MAX_CONNECTIONS");
+        }
+
+        let acquire_timeout_secs =
+            read_env_u64("DATABASE_ACQUIRE_TIMEOUT_SECS")?.unwrap_or(DEFAULT_ACQUIRE_TIMEOUT_SECS);
+
+        let idle_timeout_secs = match read_env_u64("DATABASE_IDLE_TIMEOUT_SECS")? {
+            Some(0) => None,
+            Some(value) => Some(value),
+            None => Some(DEFAULT_IDLE_TIMEOUT_SECS),
+        };
+
+        let max_lifetime_secs = match read_env_u64("DATABASE_MAX_LIFETIME_SECS")? {
+            Some(0) => None,
+            Some(value) => Some(value),
+            None => Some(DEFAULT_MAX_LIFETIME_SECS),
+        };
+
+        Ok(Self {
+            max_connections,
+            min_connections,
+            acquire_timeout_secs,
+            idle_timeout_secs,
+            max_lifetime_secs,
+        })
     }
 }
 
@@ -75,6 +113,8 @@ fn read_env_u64(key: &str) -> Result<Option<u64>> {
     }
 }
 
+pub mod test_utils;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -105,6 +145,24 @@ mod tests {
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("positive integer"));
         env::remove_var("TEST_U32_INVALID");
+    }
+
+    #[test]
+    #[serial]
+    #[cfg(unix)]
+    fn test_read_env_u32_not_unicode() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let os_value = OsString::from_vec(vec![0x80]);
+        env::set_var("TEST_U32_NOT_UNICODE", os_value);
+
+        let result = read_env_u32("TEST_U32_NOT_UNICODE");
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid UTF-8"));
+
+        env::remove_var("TEST_U32_NOT_UNICODE");
     }
 
     #[test]
@@ -154,6 +212,24 @@ mod tests {
 
     #[test]
     #[serial]
+    #[cfg(unix)]
+    fn test_read_env_u64_not_unicode() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let os_value = OsString::from_vec(vec![0x80]);
+        env::set_var("TEST_U64_NOT_UNICODE", os_value);
+
+        let result = read_env_u64("TEST_U64_NOT_UNICODE");
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid UTF-8"));
+
+        env::remove_var("TEST_U64_NOT_UNICODE");
+    }
+
+    #[test]
+    #[serial]
     fn test_read_env_u64_zero() {
         env::set_var("TEST_U64_ZERO", "0");
         let result = read_env_u64("TEST_U64_ZERO").unwrap();
@@ -164,9 +240,79 @@ mod tests {
     #[test]
     #[serial]
     fn test_read_env_u64_large_value() {
-        env::set_var("TEST_U64_LARGE", "18446744073709551615"); // u64::MAX
+        env::set_var("TEST_U64_LARGE", "18446744073709551615");
         let result = read_env_u64("TEST_U64_LARGE").unwrap();
         assert_eq!(result, Some(18_446_744_073_709_551_615));
         env::remove_var("TEST_U64_LARGE");
+    }
+
+    #[test]
+    #[serial]
+    fn test_pool_settings_defaults() {
+        env::remove_var("DATABASE_MAX_CONNECTIONS");
+        env::remove_var("DATABASE_MIN_CONNECTIONS");
+        env::remove_var("DATABASE_ACQUIRE_TIMEOUT_SECS");
+        env::remove_var("DATABASE_IDLE_TIMEOUT_SECS");
+        env::remove_var("DATABASE_MAX_LIFETIME_SECS");
+
+        let settings = PoolSettings::from_env().unwrap();
+
+        assert_eq!(settings.max_connections, DEFAULT_MAX_CONNECTIONS);
+        assert_eq!(settings.min_connections, DEFAULT_MIN_CONNECTIONS);
+        assert_eq!(settings.acquire_timeout_secs, DEFAULT_ACQUIRE_TIMEOUT_SECS);
+        assert_eq!(settings.idle_timeout_secs, Some(DEFAULT_IDLE_TIMEOUT_SECS));
+        assert_eq!(settings.max_lifetime_secs, Some(DEFAULT_MAX_LIFETIME_SECS));
+    }
+
+    #[test]
+    #[serial]
+    fn test_pool_settings_custom_values() {
+        env::set_var("DATABASE_MAX_CONNECTIONS", "15");
+        env::set_var("DATABASE_MIN_CONNECTIONS", "5");
+        env::set_var("DATABASE_ACQUIRE_TIMEOUT_SECS", "8");
+        env::set_var("DATABASE_IDLE_TIMEOUT_SECS", "900");
+        env::set_var("DATABASE_MAX_LIFETIME_SECS", "3600");
+
+        let settings = PoolSettings::from_env().unwrap();
+
+        assert_eq!(settings.max_connections, 15);
+        assert_eq!(settings.min_connections, 5);
+        assert_eq!(settings.acquire_timeout_secs, 8);
+        assert_eq!(settings.idle_timeout_secs, Some(900));
+        assert_eq!(settings.max_lifetime_secs, Some(3_600));
+
+        env::remove_var("DATABASE_MAX_CONNECTIONS");
+        env::remove_var("DATABASE_MIN_CONNECTIONS");
+        env::remove_var("DATABASE_ACQUIRE_TIMEOUT_SECS");
+        env::remove_var("DATABASE_IDLE_TIMEOUT_SECS");
+        env::remove_var("DATABASE_MAX_LIFETIME_SECS");
+    }
+
+    #[test]
+    #[serial]
+    fn test_pool_settings_invalid_relationship() {
+        env::set_var("DATABASE_MAX_CONNECTIONS", "5");
+        env::set_var("DATABASE_MIN_CONNECTIONS", "10");
+
+        let err = PoolSettings::from_env().unwrap_err();
+        assert!(err.to_string().contains("cannot exceed"));
+
+        env::remove_var("DATABASE_MAX_CONNECTIONS");
+        env::remove_var("DATABASE_MIN_CONNECTIONS");
+    }
+
+    #[test]
+    #[serial]
+    fn test_pool_settings_zero_disables_timeouts() {
+        env::set_var("DATABASE_IDLE_TIMEOUT_SECS", "0");
+        env::set_var("DATABASE_MAX_LIFETIME_SECS", "0");
+
+        let settings = PoolSettings::from_env().unwrap();
+
+        assert_eq!(settings.idle_timeout_secs, None);
+        assert_eq!(settings.max_lifetime_secs, None);
+
+        env::remove_var("DATABASE_IDLE_TIMEOUT_SECS");
+        env::remove_var("DATABASE_MAX_LIFETIME_SECS");
     }
 }
