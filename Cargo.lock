@@ -1141,11 +1141,13 @@ dependencies = [
  "anyhow",
  "axum",
  "dotenv",
+ "hyper",
  "serde",
  "serde_json",
  "sqlx",
  "thiserror",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
