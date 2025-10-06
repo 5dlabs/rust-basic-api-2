@@ -66,3 +66,99 @@ fn read_env_u64(key: &str) -> Result<Option<u64>> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    #[test]
+    #[serial]
+    fn test_read_env_u32_valid() {
+        env::set_var("TEST_U32", "42");
+        let result = read_env_u32("TEST_U32").unwrap();
+        assert_eq!(result, Some(42));
+        env::remove_var("TEST_U32");
+    }
+
+    #[test]
+    #[serial]
+    fn test_read_env_u32_missing() {
+        env::remove_var("TEST_U32_MISSING");
+        let result = read_env_u32("TEST_U32_MISSING").unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    #[serial]
+    fn test_read_env_u32_invalid() {
+        env::set_var("TEST_U32_INVALID", "invalid");
+        let result = read_env_u32("TEST_U32_INVALID");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("positive integer"));
+        env::remove_var("TEST_U32_INVALID");
+    }
+
+    #[test]
+    #[serial]
+    fn test_read_env_u32_negative() {
+        env::set_var("TEST_U32_NEG", "-5");
+        let result = read_env_u32("TEST_U32_NEG");
+        assert!(result.is_err());
+        env::remove_var("TEST_U32_NEG");
+    }
+
+    #[test]
+    #[serial]
+    fn test_read_env_u32_zero() {
+        env::set_var("TEST_U32_ZERO", "0");
+        let result = read_env_u32("TEST_U32_ZERO").unwrap();
+        assert_eq!(result, Some(0));
+        env::remove_var("TEST_U32_ZERO");
+    }
+
+    #[test]
+    #[serial]
+    fn test_read_env_u64_valid() {
+        env::set_var("TEST_U64", "123456");
+        let result = read_env_u64("TEST_U64").unwrap();
+        assert_eq!(result, Some(123456));
+        env::remove_var("TEST_U64");
+    }
+
+    #[test]
+    #[serial]
+    fn test_read_env_u64_missing() {
+        env::remove_var("TEST_U64_MISSING");
+        let result = read_env_u64("TEST_U64_MISSING").unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    #[serial]
+    fn test_read_env_u64_invalid() {
+        env::set_var("TEST_U64_INVALID", "not_a_number");
+        let result = read_env_u64("TEST_U64_INVALID");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("positive integer"));
+        env::remove_var("TEST_U64_INVALID");
+    }
+
+    #[test]
+    #[serial]
+    fn test_read_env_u64_zero() {
+        env::set_var("TEST_U64_ZERO", "0");
+        let result = read_env_u64("TEST_U64_ZERO").unwrap();
+        assert_eq!(result, Some(0));
+        env::remove_var("TEST_U64_ZERO");
+    }
+
+    #[test]
+    #[serial]
+    fn test_read_env_u64_large_value() {
+        env::set_var("TEST_U64_LARGE", "18446744073709551615"); // u64::MAX
+        let result = read_env_u64("TEST_U64_LARGE").unwrap();
+        assert_eq!(result, Some(18446744073709551615));
+        env::remove_var("TEST_U64_LARGE");
+    }
+}
