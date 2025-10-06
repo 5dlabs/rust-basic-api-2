@@ -28,7 +28,7 @@ async fn test_health_endpoint_returns_ok() {
     let client = reqwest::Client::new();
     let response = timeout(
         Duration::from_secs(5),
-        client.get(format!("http://{}/health", addr)).send(),
+        client.get(format!("http://{addr}/health")).send(),
     )
     .await
     .expect("Request timed out")
@@ -62,7 +62,7 @@ async fn test_health_endpoint_content_type() {
 
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("http://{}/health", addr))
+        .get(format!("http://{addr}/health"))
         .send()
         .await
         .expect("Request failed");
@@ -100,7 +100,7 @@ async fn test_health_endpoint_response_time() {
     let start = std::time::Instant::now();
 
     let response = client
-        .get(format!("http://{}/health", addr))
+        .get(format!("http://{addr}/health"))
         .send()
         .await
         .expect("Request failed");
@@ -111,8 +111,7 @@ async fn test_health_endpoint_response_time() {
     // Should respond well within 10ms requirement (allowing network overhead)
     assert!(
         duration < Duration::from_millis(100),
-        "Health check took {:?}",
-        duration
+        "Health check took {duration:?}"
     );
 }
 
@@ -139,7 +138,7 @@ async fn test_invalid_route_returns_404() {
 
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("http://{}/invalid", addr))
+        .get(format!("http://{addr}/invalid"))
         .send()
         .await
         .expect("Request failed");
@@ -189,10 +188,9 @@ async fn test_concurrent_requests() {
     let mut handles = vec![];
     for _ in 0..10 {
         let client = client.clone();
-        let addr = addr;
         let handle = tokio::spawn(async move {
             client
-                .get(format!("http://{}/health", addr))
+                .get(format!("http://{addr}/health"))
                 .send()
                 .await
                 .expect("Request failed")
@@ -232,7 +230,7 @@ async fn test_health_endpoint_head_request() {
 
     let client = reqwest::Client::new();
     let response = client
-        .head(format!("http://{}/health", addr))
+        .head(format!("http://{addr}/health"))
         .send()
         .await
         .expect("Request failed");

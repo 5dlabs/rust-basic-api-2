@@ -100,10 +100,7 @@ mod tests {
             Some(val) => env::set_var("DATABASE_URL", val),
             None => env::remove_var("DATABASE_URL"),
         }
-        match existing_port {
-            Some(val) => env::set_var("SERVER_PORT", val),
-            None => {}
-        }
+        if let Some(val) = existing_port { env::set_var("SERVER_PORT", val) }
     }
 
     #[test]
@@ -316,7 +313,7 @@ mod tests {
         env::set_var("DATABASE_URL", "postgresql://localhost/testdb");
         let config = Config::from_env().expect("Config should load");
 
-        let debug_output = format!("{:?}", config);
+        let debug_output = format!("{config:?}");
 
         assert!(debug_output.contains("Config"));
         assert!(debug_output.contains("database_url"));
