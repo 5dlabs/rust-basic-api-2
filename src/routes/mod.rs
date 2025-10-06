@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{Router, extract::Extension, routing::get};
+use axum::{extract::Extension, routing::get, Router};
 use tracing::{instrument, trace};
 
 use crate::{config::Config, error::AppResult};

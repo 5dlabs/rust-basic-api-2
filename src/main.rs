@@ -6,10 +6,10 @@ mod routes;
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{Router, extract::Extension};
+use axum::{extract::Extension, Router};
 use config::Config;
 use tokio::signal;
-use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
