@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SERVER_PORT: ${SERVER_PORT:-3000}
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
