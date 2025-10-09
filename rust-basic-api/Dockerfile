@@ -1,16 +1,16 @@
 # syntax=docker/dockerfile:1
 
-FROM rust:1.80 as builder
+FROM rust:1.82 as builder
 WORKDIR /app
 
 # Cache dependencies
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build --release && rm -rf src
+RUN cargo build --release --locked && rm -rf src
 
 # Build application
 COPY src ./src
-RUN cargo build --release
+RUN cargo build --release --locked
 
 FROM debian:bookworm-slim as runtime
 WORKDIR /app
