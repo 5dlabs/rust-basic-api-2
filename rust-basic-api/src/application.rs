@@ -122,24 +122,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        env,
-        sync::{Mutex, OnceLock},
-        time::Duration,
-    };
+    use std::{env, time::Duration};
     use tokio::{
         sync::oneshot,
         time::{sleep, timeout},
     };
-
-    static ENV_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
-
-    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
-        ENV_GUARD
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .expect("environment mutex poisoned")
-    }
 
     #[test]
     fn tracing_initialization_is_idempotent() {
@@ -218,9 +205,9 @@ mod tests {
         reason = "Ensures exclusive access to process environment while run() initializes."
     )]
     async fn run_future_can_be_aborted_after_startup() {
-        let guard = env_guard();
+        let guard = crate::test_support::env::guard();
         unsafe {
-            // SAFETY: Access to environment variables is serialized via `env_guard`.
+            // SAFETY: Access to environment variables is serialized via the shared environment guard.
             env::set_var("DATABASE_URL", "postgresql://localhost:5432/rust_basic_api");
             env::set_var("SERVER_PORT", "0");
         }
@@ -229,7 +216,7 @@ mod tests {
         assert!(result.is_err(), "run() should block until shutdown");
 
         unsafe {
-            // SAFETY: Access to environment variables is serialized via `env_guard`.
+            // SAFETY: Access to environment variables is serialized via the shared environment guard.
             env::remove_var("DATABASE_URL");
             env::remove_var("SERVER_PORT");
         }

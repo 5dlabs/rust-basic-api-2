@@ -9,3 +9,6 @@ pub mod routes;
 
 pub use application::run;
 pub use error::{AppResult, ConfigError};
+
+#[cfg(test)]
+pub(crate) mod test_support;

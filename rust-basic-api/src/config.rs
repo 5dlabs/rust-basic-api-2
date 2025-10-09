@@ -77,28 +77,15 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        collections::HashMap,
-        env,
-        env::VarError,
-        ffi::OsString,
-        sync::{Mutex, OnceLock},
-    };
+    use std::{collections::HashMap, env, env::VarError, ffi::OsString};
+
+    use crate::test_support::env::guard as env_guard;
 
     #[derive(Clone, Copy)]
     enum MockVar {
         Present(&'static str),
         NotPresent,
         NotUnicode(&'static str),
-    }
-
-    static ENV_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
-
-    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
-        ENV_GUARD
-            .get_or_init(|| Mutex::new(()))
-            .lock()
-            .expect("environment mutex poisoned")
     }
 
     fn mock_env_provider<'a>(
