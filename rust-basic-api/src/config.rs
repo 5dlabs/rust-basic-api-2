@@ -3,8 +3,11 @@
 use std::env;
 
 use dotenv::dotenv;
+use tracing::warn;
 
 use crate::error::ConfigError;
+
+const DEFAULT_SERVER_PORT: u16 = 3000;
 
 /// Application configuration values sourced from environment variables.
 #[derive(Debug, Clone)]
@@ -53,13 +56,18 @@ impl Config {
         };
 
         let server_port = match get_var("SERVER_PORT") {
-            Ok(value) => value
-                .parse::<u16>()
-                .map_err(|source| ConfigError::InvalidEnvVar {
-                    name: "SERVER_PORT",
-                    source,
-                })?,
-            Err(env::VarError::NotPresent) => 3000,
+            Ok(value) => match value.parse::<u16>() {
+                Ok(port) => port,
+                Err(source) => {
+                    warn!(
+                        %source,
+                        default = DEFAULT_SERVER_PORT,
+                        "Failed to parse SERVER_PORT; falling back to default port"
+                    );
+                    DEFAULT_SERVER_PORT
+                }
+            },
+            Err(env::VarError::NotPresent) => DEFAULT_SERVER_PORT,
             Err(env::VarError::NotUnicode(_)) => {
                 return Err(ConfigError::InvalidUnicode {
                     name: "SERVER_PORT",
@@ -146,7 +154,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_server_port_fails_to_parse() {
+    fn invalid_server_port_falls_back_to_default() {
         let mut vars = HashMap::new();
         vars.insert(
             "DATABASE_URL",
@@ -154,12 +162,10 @@ mod tests {
         );
         vars.insert("SERVER_PORT", MockVar::Present("not-a-number"));
 
-        let result = Config::from_env_with(mock_env_provider(&vars));
+        let config = Config::from_env_with(mock_env_provider(&vars))
+            .expect("config should load with fallback default");
 
-        assert!(matches!(
-            result,
-            Err(ConfigError::InvalidEnvVar { name, .. }) if name == "SERVER_PORT"
-        ));
+        assert_eq!(config.server_port, DEFAULT_SERVER_PORT);
     }
 
     #[test]
