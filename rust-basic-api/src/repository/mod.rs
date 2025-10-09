@@ -1,3 +1,3 @@
-//! Database repository layer.
+//! Database repository layer responsible for persistence operations.
 
-// Placeholder module for future repository implementations.
+//! Define database interaction implementations in this module as they are introduced.

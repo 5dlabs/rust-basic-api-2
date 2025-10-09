@@ -1,3 +1,3 @@
-//! Domain data models.
+//! Domain data models used by the API service.
 
-// Placeholder module for future model types.
+//! Add future model types for request and response payloads here.

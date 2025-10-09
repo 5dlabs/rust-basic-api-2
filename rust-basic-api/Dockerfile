@@ -1,4 +1,4 @@
-FROM rust:1.82 as builder
+FROM rust:1.70 as builder
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ COPY src ./src
 
 RUN cargo build --release --locked
 
-FROM debian:bookworm-slim as runtime
+FROM debian:bullseye-slim as runtime
 
 WORKDIR /app
 
