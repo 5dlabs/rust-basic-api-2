@@ -75,9 +75,8 @@ pub fn bootstrap() -> AppResult<(Router, SocketAddr, Config)> {
 /// Returns an error if tracing initialization, configuration loading, or HTTP server startup
 /// fails.
 pub async fn run() -> AppResult<()> {
-    init_tracing()?;
-    let (router, address, config) = bootstrap()?;
-    run_with(router, address, config, pending()).await
+    let config = load_config()?;
+    run_with_config(config, pending()).await
 }
 
 /// Run the HTTP server with a caller-provided shutdown signal and pre-built components.
@@ -106,11 +105,41 @@ where
     Ok(())
 }
 
+/// Launch the HTTP server with a supplied configuration and shutdown signal.
+///
+/// # Errors
+///
+/// Returns an error if tracing initialization or HTTP server execution fails.
+pub async fn run_with_config<S>(config: Config, shutdown: S) -> AppResult<()>
+where
+    S: Future<Output = ()> + Send + 'static,
+{
+    init_tracing()?;
+    let (router, address, config) = bootstrap_with(config);
+    run_with(router, address, config, shutdown).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
-    use tokio::{sync::oneshot, time::sleep};
+    use std::{
+        env,
+        sync::{Mutex, OnceLock},
+        time::Duration,
+    };
+    use tokio::{
+        sync::oneshot,
+        time::{sleep, timeout},
+    };
+
+    static ENV_GUARD: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
+        ENV_GUARD
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("environment mutex poisoned")
+    }
 
     #[test]
     fn tracing_initialization_is_idempotent() {
@@ -160,5 +189,50 @@ mod tests {
 
         let server_result = server_handle.await.expect("server task");
         assert!(server_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn run_with_config_respects_shutdown_signal() {
+        let config = Config {
+            database_url: "postgresql://localhost:5432/rust_basic_api".to_string(),
+            server_port: 0,
+        };
+
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let server_handle = tokio::spawn(run_with_config(config, async move {
+            let _ = shutdown_rx.await;
+        }));
+
+        sleep(Duration::from_millis(10)).await;
+        shutdown_tx
+            .send(())
+            .expect("shutdown signal should be delivered");
+
+        let server_result = server_handle.await.expect("server task");
+        assert!(server_result.is_ok());
+    }
+
+    #[tokio::test]
+    #[allow(
+        clippy::await_holding_lock,
+        reason = "Ensures exclusive access to process environment while run() initializes."
+    )]
+    async fn run_future_can_be_aborted_after_startup() {
+        let guard = env_guard();
+        unsafe {
+            // SAFETY: Access to environment variables is serialized via `env_guard`.
+            env::set_var("DATABASE_URL", "postgresql://localhost:5432/rust_basic_api");
+            env::set_var("SERVER_PORT", "0");
+        }
+
+        let result = timeout(Duration::from_millis(50), run()).await;
+        assert!(result.is_err(), "run() should block until shutdown");
+
+        unsafe {
+            // SAFETY: Access to environment variables is serialized via `env_guard`.
+            env::remove_var("DATABASE_URL");
+            env::remove_var("SERVER_PORT");
+        }
+        drop(guard);
     }
 }
