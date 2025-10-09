@@ -7,7 +7,6 @@ pub mod models;
 pub mod repository;
 pub mod routes;
 
-pub use application::run;
 pub use error::{AppResult, ConfigError};
 
 #[cfg(test)]

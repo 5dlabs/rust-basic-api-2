@@ -1,8 +1,11 @@
 use std::{
-    future::{pending, Future},
+    future::Future,
     net::{Ipv4Addr, SocketAddr},
     sync::Once,
 };
+
+#[cfg(test)]
+use std::future::pending;
 
 use axum::Router;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -50,6 +53,7 @@ pub fn load_config() -> AppResult<Config> {
 }
 
 /// Prepare the router, address, and configuration required to run the service using a supplied configuration.
+#[cfg(test)]
 pub fn bootstrap_with(config: Config) -> (Router, SocketAddr, Config) {
     let router = build_router();
     let address = bind_address(config.server_port);
@@ -62,6 +66,7 @@ pub fn bootstrap_with(config: Config) -> (Router, SocketAddr, Config) {
 ///
 /// Returns an error if tracing initialization, configuration loading, or HTTP server startup
 /// fails.
+#[cfg(test)]
 pub async fn run() -> AppResult<()> {
     let config = load_config()?;
     run_with_config(config, pending()).await
@@ -98,6 +103,7 @@ where
 /// # Errors
 ///
 /// Returns an error if tracing initialization or HTTP server execution fails.
+#[cfg(test)]
 pub async fn run_with_config<S>(config: Config, shutdown: S) -> AppResult<()>
 where
     S: Future<Output = ()> + Send + 'static,
