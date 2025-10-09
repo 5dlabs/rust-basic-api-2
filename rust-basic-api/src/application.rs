@@ -1,13 +1,13 @@
 use std::{
-    future::Future,
+    future::{pending, Future},
     net::{Ipv4Addr, SocketAddr},
     sync::Once,
 };
 
-#[cfg(test)]
-use std::future::pending;
-
 use axum::Router;
+use tokio::signal;
+#[cfg(unix)]
+use tokio::signal::unix::{signal as unix_signal, SignalKind};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use crate::{config::Config, error::AppResult, routes};
@@ -52,6 +52,51 @@ pub fn load_config() -> AppResult<Config> {
     Ok(Config::from_env()?)
 }
 
+/// Produce a shutdown signal future that reacts to common termination events.
+pub async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        match unix_signal(SignalKind::terminate()) {
+            Ok(mut sigterm) => {
+                tokio::select! {
+                    () = async {
+                        if let Err(error) = signal::ctrl_c().await {
+                            tracing::error!(%error, "Failed to install Ctrl+C handler");
+                            pending::<()>().await;
+                        }
+                    } => {
+                        tracing::info!("Received Ctrl+C shutdown signal");
+                    },
+                    maybe = sigterm.recv() => {
+                        if maybe.is_some() {
+                            tracing::info!("Received SIGTERM shutdown signal");
+                        } else {
+                            tracing::warn!("SIGTERM listener terminated without receiving a signal");
+                        }
+                    },
+                }
+            }
+            Err(error) => {
+                tracing::error!(%error, "Failed to install SIGTERM handler");
+                if let Err(ctrl_c_error) = signal::ctrl_c().await {
+                    tracing::error!(%ctrl_c_error, "Failed to install Ctrl+C handler");
+                    pending::<()>().await;
+                }
+                tracing::info!("Received Ctrl+C shutdown signal");
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        if let Err(error) = signal::ctrl_c().await {
+            tracing::error!(%error, "Failed to install Ctrl+C handler");
+            pending::<()>().await;
+        }
+        tracing::info!("Received Ctrl+C shutdown signal");
+    }
+}
+
 /// Prepare the router, address, and configuration required to run the service using a supplied configuration.
 #[cfg(test)]
 pub fn bootstrap_with(config: Config) -> (Router, SocketAddr, Config) {
@@ -69,7 +114,7 @@ pub fn bootstrap_with(config: Config) -> (Router, SocketAddr, Config) {
 #[cfg(test)]
 pub async fn run() -> AppResult<()> {
     let config = load_config()?;
-    run_with_config(config, pending()).await
+    run_with_config(config, shutdown_signal()).await
 }
 
 /// Run the HTTP server with a caller-provided shutdown signal and pre-built components.
@@ -126,6 +171,15 @@ mod tests {
     fn tracing_initialization_is_idempotent() {
         init_tracing();
         init_tracing();
+    }
+
+    #[test]
+    fn shutdown_signal_future_is_send() {
+        fn assert_send<T: Send>(value: T) {
+            drop(value);
+        }
+
+        assert_send(shutdown_signal());
     }
 
     #[test]
