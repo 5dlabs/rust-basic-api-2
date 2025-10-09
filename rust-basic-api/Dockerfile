@@ -1,11 +1,11 @@
-FROM rust:1.80 as builder
+FROM rust:1.82 as builder
 
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 
-RUN cargo build --release
+RUN cargo build --release --locked
 
 FROM debian:bullseye-slim as runtime
 
@@ -17,7 +17,7 @@ RUN apt-get update \
 
 COPY --from=builder /app/target/release/rust-basic-api /usr/local/bin/rust-basic-api
 
-ENV RUST_LOG=${RUST_LOG:-info}
+ENV RUST_LOG=info
 
 EXPOSE 3000
 

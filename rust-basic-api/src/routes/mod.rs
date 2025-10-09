@@ -1,6 +1,6 @@
 //! HTTP route definitions and handlers.
 
-use axum::{Router, routing::get};
+use axum::{routing::get, Router};
 
 /// Build the application router with all public routes.
 pub fn router() -> Router {
@@ -10,4 +10,14 @@ pub fn router() -> Router {
 /// Health check endpoint used by load balancers and monitoring.
 pub async fn health_check() -> &'static str {
     "OK"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn health_check_returns_ok() {
+        assert_eq!(health_check().await, "OK");
+    }
 }
