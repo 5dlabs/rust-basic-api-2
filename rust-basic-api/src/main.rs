@@ -1,12 +1,6 @@
-mod config;
-mod error;
-mod models;
-mod repository;
-mod routes;
-
 use anyhow::Context;
 use axum::Router;
-use config::Config;
+use rust_basic_api::{config::Config, repository, routes};
 use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
