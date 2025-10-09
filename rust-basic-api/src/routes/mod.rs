@@ -44,8 +44,7 @@ mod tests {
     #[serial]
     async fn health_route_returns_ok() {
         let url = example_database_url();
-        let pool = crate::repository::create_pool(&url)
-            .expect("pool should be created");
+        let pool = crate::repository::create_pool(&url).expect("pool should be created");
 
         let app = create_router(AppState { db_pool: pool });
 

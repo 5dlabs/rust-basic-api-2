@@ -39,8 +39,7 @@ mod tests {
     #[tokio::test]
     async fn create_pool_from_valid_url() {
         let url = example_database_url();
-        let pool = create_pool(&url)
-            .expect("pool should be created with valid URL");
+        let pool = create_pool(&url).expect("pool should be created with valid URL");
 
         assert!(!pool.is_closed());
     }
