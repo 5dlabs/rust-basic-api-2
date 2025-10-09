@@ -17,7 +17,7 @@ static TRACING: Once = Once::new();
 ///
 /// This function never returns an error; the `Result` type is retained for API symmetry
 /// with the rest of the application bootstrap pipeline.
-pub fn init_tracing() -> AppResult<()> {
+pub fn init_tracing() {
     TRACING.call_once(|| {
         let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
@@ -26,8 +26,6 @@ pub fn init_tracing() -> AppResult<()> {
             .with(tracing_subscriber::fmt::layer())
             .init();
     });
-
-    Ok(())
 }
 
 /// Build the HTTP router that powers the service.
@@ -56,16 +54,6 @@ pub fn bootstrap_with(config: Config) -> (Router, SocketAddr, Config) {
     let router = build_router();
     let address = bind_address(config.server_port);
     (router, address, config)
-}
-
-/// Prepare the router, address, and configuration required to run the service.
-///
-/// # Errors
-///
-/// Propagates configuration loading failures from [`load_config`].
-pub fn bootstrap() -> AppResult<(Router, SocketAddr, Config)> {
-    let config = load_config()?;
-    Ok(bootstrap_with(config))
 }
 
 /// Launch the HTTP server using the supplied configuration.
@@ -114,7 +102,7 @@ pub async fn run_with_config<S>(config: Config, shutdown: S) -> AppResult<()>
 where
     S: Future<Output = ()> + Send + 'static,
 {
-    init_tracing()?;
+    init_tracing();
     let (router, address, config) = bootstrap_with(config);
     run_with(router, address, config, shutdown).await
 }
@@ -130,8 +118,8 @@ mod tests {
 
     #[test]
     fn tracing_initialization_is_idempotent() {
-        init_tracing().expect("first initialization should succeed");
-        init_tracing().expect("second initialization should be a no-op");
+        init_tracing();
+        init_tracing();
     }
 
     #[test]
@@ -156,7 +144,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_with_respects_shutdown_signal() {
-        init_tracing().expect("tracing initialization should succeed");
+        init_tracing();
         let router = build_router();
         let address = SocketAddr::from(([127, 0, 0, 1], 0));
         let config = Config {

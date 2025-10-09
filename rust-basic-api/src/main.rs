@@ -1,8 +1,18 @@
 #![allow(unexpected_cfgs)]
 
-use rust_basic_api::{run, AppResult};
+mod application;
+mod config;
+mod error;
+mod models;
+mod repository;
+mod routes;
+
+#[cfg(test)]
+mod test_support;
+
+use error::AppResult;
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
-    run().await
+    application::run().await
 }
