@@ -7,7 +7,7 @@ COPY src ./src
 
 RUN cargo build --release --locked
 
-FROM debian:bullseye-slim as runtime
+FROM debian:bookworm-slim as runtime
 
 WORKDIR /app
 
