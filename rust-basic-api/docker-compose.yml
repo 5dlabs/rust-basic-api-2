@@ -11,5 +11,6 @@ services:
       - .env
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-5}
       SERVER_PORT: ${SERVER_PORT:-3000}
       RUST_LOG: ${RUST_LOG:-info}

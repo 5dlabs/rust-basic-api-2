@@ -8,7 +8,7 @@ use anyhow::Context;
 use axum::Router;
 use config::Config;
 use std::net::SocketAddr;
-use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -16,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config = Config::from_env().context("failed to load configuration")?;
 
-    let _pool = repository::create_pool(config.database_url())
+    let _pool = repository::create_pool(config.database_url(), config.database_max_connections())
         .context("failed to configure database connection pool")?;
 
     let app: Router = routes::router();

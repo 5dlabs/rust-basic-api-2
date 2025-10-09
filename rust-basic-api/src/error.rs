@@ -14,4 +14,6 @@ pub enum ConfigError {
         #[source]
         source: ParseIntError,
     },
+    #[error("environment variable `{key}` must be at least {min}")]
+    InvalidRange { key: String, min: u32 },
 }
