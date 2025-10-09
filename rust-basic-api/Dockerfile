@@ -1,9 +1,7 @@
-FROM rust:1.80 AS builder
+FROM rust:1.90 AS builder
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
-RUN cargo fetch
-
 COPY src ./src
 
 RUN cargo build --release

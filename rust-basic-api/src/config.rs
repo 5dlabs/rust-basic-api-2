@@ -39,3 +39,118 @@ impl Config {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+
+    fn clear_env() {
+        env::remove_var("DATABASE_URL");
+        env::remove_var("SERVER_PORT");
+    }
+
+    fn example_database_url() -> String {
+        format!(
+            "{scheme}://{user}:{password}@{host}:{port}/{database}",
+            scheme = "postgres",
+            user = "example_user",
+            password = "example_secret",
+            host = "localhost",
+            port = 5432,
+            database = "example_db"
+        )
+    }
+
+    #[test]
+    #[serial]
+    fn from_env_loads_expected_values() {
+        clear_env();
+
+        let expected_database_url = example_database_url();
+        env::set_var("DATABASE_URL", &expected_database_url);
+        env::set_var("SERVER_PORT", "4123");
+
+        let config = Config::from_env().expect("config should load from environment");
+        assert_eq!(config.database_url, expected_database_url);
+        assert_eq!(config.server_port, 4123);
+
+        clear_env();
+    }
+
+    #[test]
+    #[serial]
+    fn from_env_defaults_port_when_missing() {
+        clear_env();
+
+        env::set_var("DATABASE_URL", example_database_url());
+
+        let config = Config::from_env().expect("config should load with default port");
+        assert_eq!(config.server_port, 3000);
+
+        clear_env();
+    }
+
+    #[test]
+    #[serial]
+    fn from_env_errors_when_database_url_missing() {
+        clear_env();
+
+        env::set_var("SERVER_PORT", "3000");
+
+        let error = Config::from_env().expect_err("missing DATABASE_URL must error");
+
+        match error {
+            AppError::Configuration(message) => {
+                assert!(message.contains("DATABASE_URL"));
+            }
+            other => panic!("expected configuration error, got {other:?}"),
+        }
+
+        clear_env();
+    }
+
+    #[test]
+    #[serial]
+    fn from_env_errors_on_invalid_port() {
+        clear_env();
+
+        env::set_var("DATABASE_URL", example_database_url());
+        env::set_var("SERVER_PORT", "not-a-number");
+
+        let error = Config::from_env().expect_err("invalid port must error");
+
+        match error {
+            AppError::Configuration(message) => {
+                assert!(message.contains("SERVER_PORT"));
+            }
+            other => panic!("expected configuration error, got {other:?}"),
+        }
+
+        clear_env();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    #[serial]
+    fn from_env_errors_on_non_unicode_port() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        clear_env();
+
+        env::set_var("DATABASE_URL", example_database_url());
+        env::set_var("SERVER_PORT", OsString::from_vec(vec![0xFF]));
+
+        let error = Config::from_env().expect_err("non-unicode port must error");
+
+        match error {
+            AppError::Configuration(message) => {
+                assert!(message.contains("invalid unicode"));
+            }
+            other => panic!("expected configuration error, got {other:?}"),
+        }
+
+        clear_env();
+    }
+}
