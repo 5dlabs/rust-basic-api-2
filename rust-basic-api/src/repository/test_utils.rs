@@ -74,14 +74,24 @@ pub async fn cleanup_database(pool: &PgPool) {
 mod tests {
     use super::*;
 
+    /// Test that setup_test_database creates a pool.
+    ///
+    /// This test requires a running PostgreSQL instance.
+    /// Run with: `cargo test --lib -- --ignored`
     #[tokio::test]
+    #[ignore = "requires running PostgreSQL instance"]
     async fn test_setup_creates_pool() {
         let pool = setup_test_database().await;
         // Pool size can be 0 for lazy pools, just verify it exists
         let _ = pool.size();
     }
 
+    /// Test that transaction helper can create a transaction.
+    ///
+    /// This test requires a running PostgreSQL instance.
+    /// Run with: `cargo test --lib -- --ignored`
     #[tokio::test]
+    #[ignore = "requires running PostgreSQL instance"]
     async fn test_transaction_can_be_created() {
         let pool = setup_test_database().await;
         let tx = transaction(&pool).await;
@@ -89,7 +99,12 @@ mod tests {
         drop(tx); // Rollback
     }
 
+    /// Test that cleanup_database removes all data.
+    ///
+    /// This test requires a running PostgreSQL instance.
+    /// Run with: `cargo test --lib -- --ignored`
     #[tokio::test]
+    #[ignore = "requires running PostgreSQL instance"]
     async fn test_cleanup_removes_data() {
         let pool = setup_test_database().await;
 

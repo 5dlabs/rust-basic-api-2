@@ -1,6 +1,9 @@
 //! Database integration tests.
 //!
 //! These tests verify the database schema, migrations, and CRUD operations.
+//!
+//! **NOTE**: These tests require a running PostgreSQL instance.
+//! Run with: `cargo test --test database_integration -- --ignored`
 
 use rust_basic_api::repository::test_utils;
 use serial_test::serial;
@@ -9,6 +12,7 @@ use sqlx::{types::chrono, Row};
 /// Test that the users table exists with the correct schema.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_users_table_exists() {
     let pool = test_utils::setup_test_database().await;
 
@@ -29,6 +33,7 @@ async fn test_users_table_exists() {
 /// Test that all required columns exist in the users table.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_users_table_columns() {
     let pool = test_utils::setup_test_database().await;
 
@@ -54,6 +59,7 @@ async fn test_users_table_columns() {
 /// Test that performance indexes exist.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_indexes_exist() {
     let pool = test_utils::setup_test_database().await;
 
@@ -86,6 +92,7 @@ async fn test_indexes_exist() {
 /// Test basic user insertion.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_user_insertion() {
     let pool = test_utils::setup_test_database().await;
     test_utils::cleanup_database(&pool).await;
@@ -107,6 +114,7 @@ async fn test_user_insertion() {
 /// Test that email unique constraint is enforced.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_email_unique_constraint() {
     let pool = test_utils::setup_test_database().await;
     test_utils::cleanup_database(&pool).await;
@@ -144,6 +152,7 @@ async fn test_email_unique_constraint() {
 /// Test that timestamps are automatically set on insert.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_timestamps_auto_set() {
     let pool = test_utils::setup_test_database().await;
     test_utils::cleanup_database(&pool).await;
@@ -179,6 +188,7 @@ async fn test_timestamps_auto_set() {
 /// Test that `updated_at` trigger updates timestamp on update.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_updated_at_trigger() {
     let pool = test_utils::setup_test_database().await;
     test_utils::cleanup_database(&pool).await;
@@ -239,6 +249,7 @@ async fn test_updated_at_trigger() {
 /// Test user retrieval by ID.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_user_retrieval() {
     let pool = test_utils::setup_test_database().await;
     test_utils::cleanup_database(&pool).await;
@@ -274,6 +285,7 @@ async fn test_user_retrieval() {
 /// Test user deletion.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_user_deletion() {
     let pool = test_utils::setup_test_database().await;
     test_utils::cleanup_database(&pool).await;
@@ -313,6 +325,7 @@ async fn test_user_deletion() {
 /// Test connection pool under concurrent load.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_connection_pool_concurrent_operations() {
     let pool = test_utils::setup_test_database().await;
     test_utils::cleanup_database(&pool).await;
@@ -351,6 +364,7 @@ async fn test_connection_pool_concurrent_operations() {
 /// Test transaction isolation with the `test_utils` transaction helper.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_transaction_isolation() {
     let pool = test_utils::setup_test_database().await;
     test_utils::cleanup_database(&pool).await;
@@ -392,6 +406,7 @@ async fn test_transaction_isolation() {
 /// Test that connection pool is properly configured.
 #[tokio::test]
 #[serial]
+#[ignore = "requires running PostgreSQL instance"]
 async fn test_pool_configuration() {
     let pool = test_utils::setup_test_database().await;
 
