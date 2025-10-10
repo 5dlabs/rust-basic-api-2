@@ -10,8 +10,16 @@ async fn main() -> anyhow::Result<()> {
 
     let config = Config::from_env().context("failed to load configuration")?;
 
-    let _pool = repository::create_pool(config.database_url(), config.database_max_connections())
+    let pool = repository::create_pool(config.database_url(), config.database_max_connections())
         .context("failed to configure database connection pool")?;
+
+    // Run database migrations
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .context("failed to run database migrations")?;
+
+    tracing::info!("Database connected and migrations completed");
 
     let app: Router = routes::router();
 

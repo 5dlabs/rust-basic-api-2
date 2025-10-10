@@ -2,6 +2,9 @@ use sqlx::postgres::PgPoolOptions;
 
 pub type DbPool = sqlx::PgPool;
 
+#[cfg(test)]
+pub mod test_utils;
+
 /// Creates a lazy database connection pool.
 ///
 /// # Errors
