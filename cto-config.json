@@ -75,7 +75,8 @@
     "rex": {
       "githubApp": "5DLabs-Rex",
       "cli": "factory",
-      "model": "gpt-5-codex",
+      "model": "claude-sonnet-4-5-20250929",
+      "reasoningEffort": "high",
       "tools": {
         "remote": [
           "brave_search_brave_web_search",
