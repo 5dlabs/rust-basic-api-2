@@ -8,6 +8,9 @@ COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release --locked && rm -rf src
 
+# Copy migrations directory (required by sqlx::migrate! macro at compile time)
+COPY migrations ./migrations
+
 # Build application
 COPY src ./src
 RUN cargo build --release --locked
