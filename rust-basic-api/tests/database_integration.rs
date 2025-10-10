@@ -2,7 +2,7 @@
 //!
 //! These tests verify the database schema, migrations, and CRUD operations.
 //!
-//! **NOTE**: These tests require a running PostgreSQL instance.
+//! **NOTE**: These tests require a running `PostgreSQL` instance.
 //! Run with: `cargo test --test database_integration -- --ignored`
 
 use rust_basic_api::repository::test_utils;
