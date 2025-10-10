@@ -1,4 +1,6 @@
+use axum::{body::Body, http::Request};
 use std::env;
+use tower::ServiceExt;
 
 // Test that the binary compiles and can be run
 // This tests the main.rs module indirectly
@@ -12,10 +14,7 @@ fn test_binary_exists() {
         .output()
         .expect("Failed to execute cargo build");
 
-    assert!(
-        output.status.success(),
-        "Binary should build successfully"
-    );
+    assert!(output.status.success(), "Binary should build successfully");
 }
 
 #[test]
@@ -41,9 +40,6 @@ async fn test_router_can_be_created() {
     let router = rust_basic_api::routes::router();
 
     // Verify router is functional by sending a test request
-    use axum::{body::Body, http::Request};
-    use tower::ServiceExt;
-
     let response = router
         .oneshot(
             Request::builder()
