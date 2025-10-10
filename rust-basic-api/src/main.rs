@@ -10,10 +10,24 @@ async fn main() -> anyhow::Result<()> {
 
     let config = Config::from_env().context("failed to load configuration")?;
 
-    let _pool = repository::create_pool(config.database_url(), config.database_max_connections())
+    // Create database connection pool
+    let pool = repository::create_pool(config.database_url(), config.database_max_connections())
         .context("failed to configure database connection pool")?;
 
-    let app: Router = routes::router();
+    // Run database migrations
+    tracing::info!("running database migrations");
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .context("failed to run database migrations")?;
+
+    tracing::info!("database connected and migrations completed");
+
+    // Create application state
+    let state = routes::AppState { pool };
+
+    // Build router with state
+    let app: Router = routes::router(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port()));
     tracing::info!(%addr, "starting HTTP server");

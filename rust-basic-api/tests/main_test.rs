@@ -37,7 +37,15 @@ fn test_config_can_be_loaded() {
 #[tokio::test]
 async fn test_router_can_be_created() {
     // Test that router can be created successfully
-    let router = rust_basic_api::routes::router();
+    dotenv::from_filename(".env.test").ok();
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://localhost:5432/testdb".to_string());
+
+    let pool = rust_basic_api::repository::create_pool(&database_url, 5)
+        .expect("Failed to create test pool");
+
+    let state = rust_basic_api::routes::AppState { pool };
+    let router = rust_basic_api::routes::router(state);
 
     // Verify router is functional by sending a test request
     let response = router

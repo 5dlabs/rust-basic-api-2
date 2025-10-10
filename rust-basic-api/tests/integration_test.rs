@@ -2,12 +2,24 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use rust_basic_api::routes::router;
+use rust_basic_api::{repository, routes};
 use tower::ServiceExt;
+
+fn create_test_app() -> axum::Router {
+    // Setup test database pool
+    dotenv::from_filename(".env.test").ok();
+    let database_url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env.test");
+
+    let pool = repository::create_pool(&database_url, 5).expect("Failed to create test pool");
+
+    let state = routes::AppState { pool };
+    routes::router(state)
+}
 
 #[tokio::test]
 async fn test_health_endpoint_returns_200() {
-    let app = router();
+    let app = create_test_app();
 
     let response = app
         .oneshot(
@@ -24,7 +36,7 @@ async fn test_health_endpoint_returns_200() {
 
 #[tokio::test]
 async fn test_health_endpoint_returns_ok_body() {
-    let app = router();
+    let app = create_test_app();
 
     let response = app
         .oneshot(
@@ -42,7 +54,7 @@ async fn test_health_endpoint_returns_ok_body() {
 
 #[tokio::test]
 async fn test_invalid_route_returns_404() {
-    let app = router();
+    let app = create_test_app();
 
     let response = app
         .oneshot(
@@ -59,7 +71,7 @@ async fn test_invalid_route_returns_404() {
 
 #[tokio::test]
 async fn test_health_endpoint_with_get_method() {
-    let app = router();
+    let app = create_test_app();
 
     let response = app
         .oneshot(
@@ -77,7 +89,7 @@ async fn test_health_endpoint_with_get_method() {
 
 #[tokio::test]
 async fn test_health_endpoint_with_post_method_not_allowed() {
-    let app = router();
+    let app = create_test_app();
 
     let response = app
         .oneshot(
@@ -95,7 +107,7 @@ async fn test_health_endpoint_with_post_method_not_allowed() {
 
 #[tokio::test]
 async fn test_health_endpoint_multiple_requests() {
-    let app = router();
+    let app = create_test_app();
 
     for _ in 0..5 {
         let response = app
