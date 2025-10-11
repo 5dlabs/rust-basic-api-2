@@ -1,0 +1,4 @@
+# Ignore .env.example files - they contain template placeholders, not real secrets
+rust-basic-api/.env.example
+.env.example
+**/.env.example
